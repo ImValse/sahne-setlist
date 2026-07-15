@@ -1139,7 +1139,55 @@ document.addEventListener('visibilitychange', () => {
 function enterStage() {
   document.body.classList.add('stage');
   $('stage-exit').classList.remove('hidden');
+  applyStagePos();
   fitToWidth();
+}
+
+// Sahne kontrol çubuğunun taşınabilir konumu
+function applyStagePos() {
+  const el = $('stage-ctrls');
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem('stage_ctrls_pos') || 'null'); } catch (_) {}
+  if (p && typeof p.left === 'number' && typeof p.top === 'number') {
+    el.style.left = p.left + 'px';
+    el.style.top = p.top + 'px';
+    el.style.right = 'auto';
+  } else {
+    el.style.left = ''; el.style.top = ''; el.style.right = '';
+  }
+}
+function setupStageDrag() {
+  const el = $('stage-ctrls');
+  const grip = el.querySelector('[data-grip]');
+  if (!grip) return;
+  grip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    const rect = el.getBoundingClientRect();
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
+    const onMove = (ev) => {
+      let left = ev.clientX - offX;
+      let top = ev.clientY - offY;
+      const maxL = window.innerWidth - el.offsetWidth - 4;
+      const maxT = window.innerHeight - el.offsetHeight - 4;
+      left = Math.max(4, Math.min(left, maxL));
+      top = Math.max(4, Math.min(top, maxT));
+      el.style.left = left + 'px';
+      el.style.top = top + 'px';
+      el.style.right = 'auto';
+    };
+    const onUp = () => {
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      const r = el.getBoundingClientRect();
+      localStorage.setItem('stage_ctrls_pos', JSON.stringify({ left: Math.round(r.left), top: Math.round(r.top) }));
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
+  });
 }
 function exitStage() {
   document.body.classList.remove('stage');
@@ -1508,5 +1556,6 @@ async function forceUpdate() {
 }
 
 /* ---------- Baslat ---------- */
+setupStageDrag();
 renderList();
 syncResume();
