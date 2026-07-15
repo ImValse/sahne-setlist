@@ -1385,38 +1385,56 @@ function flashKickBtn(t) {
   }, delay);
 }
 
+// Mod: 0 kapalı · 1 sadece kick · 2 kick+snare (aynı anda) · 3 kick→snare (ayrı, sırayla)
+let kickMode = 0;
+const KICK_LABELS = ['🥁 Metronom', '🥁 Kick', '🥁 Kick+Snare', '🥁 Kick→Snare'];
+function updateKickBtn() {
+  const b = $('kick-toggle');
+  b.textContent = KICK_LABELS[kickMode];
+  b.classList.toggle('on', kickMode !== 0);
+  if (kickMode === 0) b.classList.remove('beat');
+}
 function kickScheduler() {
   const bpm = currentSong && currentSong.bpm;
   if (!bpm || !audioCtx) return;
   const spb = 60 / bpm;
   while (kickNextTime < audioCtx.currentTime + 0.12) {
-    if (beatIndex % 2 === 0) playKick(kickNextTime); else playSnare(kickNextTime); // 1&3 kick, 2&4 snare
-    flashKickBtn(kickNextTime);
+    const t = kickNextTime;
+    if (kickMode === 1) {
+      playKick(t);                                   // sadece kick
+    } else if (kickMode === 2) {
+      playKick(t); playSnare(t);                     // kick + snare aynı anda
+    } else if (kickMode === 3) {
+      if (beatIndex % 2 === 0) playKick(t); else playSnare(t); // önce kick, peşine snare (ayrı)
+    }
+    flashKickBtn(t);
     beatIndex = (beatIndex + 1) % 4;
     kickNextTime += spb;
   }
 }
-function startKick() {
-  if (currentSong && !currentSong.bpm) setBpm($('bpm-slider').value); // slider değerini kaydet
-  const bpm = currentSong && currentSong.bpm;
-  if (!bpm) return;
+// Kick düğmesine her tıklamada modu ilerlet: off -> 1 -> 2 -> 3 -> off
+function cycleKick() {
+  if (currentSong && !currentSong.bpm) setBpm($('bpm-slider').value);
+  if (!(currentSong && currentSong.bpm)) return;
+  const next = (kickMode + 1) % 4;
+  if (next === 0) { stopKick(); return; }
   if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return; }
-  stopKick();
+  kickMode = next;
   kickOn = true;
   beatIndex = 0;
-  $('kick-toggle').classList.add('on');
+  if (kickSchedTimer) clearInterval(kickSchedTimer);
   kickNextTime = audioCtx.currentTime + 0.08;
   kickScheduler();
   kickSchedTimer = setInterval(kickScheduler, 25);
+  updateKickBtn();
 }
 function stopKick() {
   kickOn = false;
-  const b = $('kick-toggle');
-  b.classList.remove('on'); b.classList.remove('beat');
+  kickMode = 0;
   if (kickSchedTimer) clearInterval(kickSchedTimer);
   kickSchedTimer = null;
+  updateKickBtn();
 }
-function toggleKick() { kickOn ? stopKick() : startKick(); }
 
 /* ---------- BPM: şarkı içinde slider + tap ---------- */
 function updateBpmUI() {
@@ -1665,7 +1683,7 @@ $('stage-font-down').addEventListener('click', () => changeFont(-2));
 $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
-$('kick-toggle').addEventListener('click', toggleKick);
+$('kick-toggle').addEventListener('click', cycleKick);
 $('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
 $('bpm-tap').addEventListener('click', bpmTap);
 $('edit-tap').addEventListener('click', tapTempo);
