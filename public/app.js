@@ -182,6 +182,28 @@ function colorCss(key) { const c = COLORS.find((x) => x.key === key); return c ?
 function colorName(key) { const c = COLORS.find((x) => x.key === key); return c ? c.name : ''; }
 function colorTint(key) { const c = COLORS.find((x) => x.key === key); return c ? c.tint : ''; }
 
+// Sanatçıya göre otomatik tür tahmini (renk anahtarı döndürür, bulunamazsa '').
+// slow/cover otomatik atanmaz (tempo/icra türü); rock/pop/arabesk/türkü atanır.
+const ARTIST_GENRE = {};
+(function () {
+  const map = {
+    red: ['duman', 'manga', 'sebnem ferah', 'mor ve otesi', 'pentagram', 'athena', 'kurban', 'pinhani', 'gripin', 'teoman', 'yuksek sadakat', 'badem', 'model', 'redd', 'emre aydin', 'replikas', 'kargo', 'bulutsuzluk ozlemi', 'feridun duzagac', 'hayko cepkin', 'ogun sanlisoy', 'adamlar', 'son feci bisiklet', 'dolu kadehi ters tut', 'gece yolculari', 'zakkum', 'madrigal', 'kramp', 'ezginin gunlugu', 'moron', 'palmiyeler', 'buyuk ev ablukada', 'kirmizi', 'sattas', 'leman sam'],
+    green: ['tarkan', 'sezen aksu', 'kenan dogulu', 'murat boz', 'hadise', 'hande yener', 'sertab erener', 'gulsen', 'simge', 'mustafa sandal', 'sila', 'aleyna tilki', 'edis', 'mabel matiz', 'ajda pekkan', 'nilufer', 'serdar ortac', 'gokhan ozen', 'bengu', 'ziynet sali', 'gulben ergen', 'demet akalin', 'funda arar', 'gokhan turkmen', 'buray', 'zeynep bastik', 'irem derici', 'feride hilal akin', 'aleyna', 'ece seckin', 'zerrin ozer', 'levent yuksel', 'yalin', 'gokhan kirdar', 'athena', 'kenan'],
+    purple: ['muslum gurses', 'orhan gencebay', 'ferdi tayfur', 'ibrahim tatlises', 'bergen', 'ceylan', 'azer bulbul', 'kibariye', 'hakki bulut', 'mahsun kirmizigul', 'cengiz kurtoglu', 'ozcan deniz', 'ismail yk', 'sibel can', 'emrah', 'selami sahin', 'ebru gundes', 'yildiz tilbe', 'mustafa keser', 'coskun sabah', 'zeki muren', 'bulent ersoy'],
+    orange: ['neset ertas', 'asik veysel', 'musa eroglu', 'arif sag', 'belkis akkale', 'kubat', 'sabahat akkiraz', 'ozay gonlum', 'asik mahzuni serif', 'mahzuni serif', 'davut sulari', 'erkan ogur', 'selda bagcan', 'ruhi su', 'tolga sag', 'cengiz ozkan', 'izzet altinmese', 'sinan yilmaz', 'onur akin'],
+  };
+  for (const key in map) map[key].forEach((a) => { ARTIST_GENRE[a] = key; });
+})();
+
+function guessGenre(artist) {
+  const n = trSimplify(artist || '').toLowerCase().trim();
+  if (!n) return '';
+  if (ARTIST_GENRE[n]) return ARTIST_GENRE[n];
+  // "feat."/parantez vb. temizle, ilk sanatçıyı dene
+  const base = n.split(/\s*(?:feat\.?|ft\.?|&|,|\/|\(|-)\s*/)[0].trim();
+  return ARTIST_GENRE[base] || '';
+}
+
 let filterText = '';
 let filterGenre = '';        // '' = tümü, ya da renk anahtarı
 let filterPlayed = '';       // '' | 'played' | 'unplayed'
@@ -436,12 +458,20 @@ function commitOrder() {
 /* ==========================================================================
  * GORUNUM: SARKI
  * ========================================================================== */
+let autoPlayTimer = null;
 async function openSong(songId) {
   const sl = currentSetlist();
   const song = sl.songs.find((s) => s.id === songId);
   if (!song) return;
   currentSong = song;
-  if (!song.played) { song.played = true; saveState(); }  // açınca çalındı sayılır
+  // 1 dakikadan fazla açık kalırsa otomatik "çalındı" işaretle (elle de tikleyebilirsin)
+  clearTimeout(autoPlayTimer);
+  autoPlayTimer = setTimeout(() => {
+    if (currentSong && currentSong.id === song.id && !song.played) {
+      song.played = true;
+      saveState();
+    }
+  }, 60000);
 
   $('song-title').textContent = song.song || song.title || 'Şarkı';
   $('song-artist').textContent = song.artist || '';
@@ -741,6 +771,7 @@ function importRepertoire() {
       body: '',            // tembel indirilecek
       source: s.url,
       transpose: 0,
+      color: guessGenre(s.artist || ''),
       addedAt: Date.now(),
     })),
   };
@@ -810,6 +841,7 @@ function manualAdd(e) {
     body,
     source: '',
     transpose: 0,
+    color: guessGenre(artist),
     addedAt: Date.now(),
   };
   currentSetlist().songs.push(song);
@@ -864,15 +896,17 @@ async function addSongFromUrl(result, itemEl) {
     const res = await fetch('/api/song?url=' + encodeURIComponent(result.url));
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Hata');
+    const artist = data.artist || result.artist || '';
     const song = {
       id: uid(),
       title: (data.artist ? data.artist + ' - ' : '') + data.song,
-      artist: data.artist || result.artist || '',
+      artist,
       song: data.song || result.song || result.title,
       key: data.key || '',
       body: data.body,
       source: data.source || result.url,
       transpose: 0,
+      color: guessGenre(artist),
       addedAt: Date.now(),
     };
     currentSetlist().songs.push(song);
@@ -1065,6 +1099,7 @@ async function refreshCurrentSong() {
  * GEZINME + YARDIMCI
  * ========================================================================== */
 function showList() {
+  clearTimeout(autoPlayTimer);
   stopScroll();
   stopSongTimer();
   stopMetro();
