@@ -597,6 +597,7 @@ async function openSong(songId) {
   startSongTimer();
   requestWakeLock();
   stopMetro();
+  stopKick();
 
   // Tembel yukleme: govde bos ama kaynak varsa internetten cek
   if (!song.body && song.source) {
@@ -1213,6 +1214,7 @@ function showList() {
   stopScroll();
   stopSongTimer();
   stopMetro();
+  stopKick();
   exitStage();
   releaseWakeLock();
   $('view-song').classList.add('hidden');
@@ -1334,6 +1336,63 @@ function stopMetro() {
   btn.classList.remove('beat');
 }
 function toggleMetro() { metroInterval ? stopMetro() : startMetro(); }
+
+/* ---------- Sesli metronom: davul KICK (Web Audio, sentezlenmiş) ---------- */
+let audioCtx = null;
+let kickOn = false;
+let kickSchedTimer = null;
+let kickNextTime = 0;
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return true;
+}
+// Tek bir kick vuruşu sentezle (150Hz -> 50Hz düşen sinüs + hızlı sönüm)
+function playKick(t) {
+  const ctx = audioCtx;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(155, t);
+  osc.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(1, t + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.25);
+}
+function kickScheduler() {
+  const bpm = currentSong && currentSong.bpm;
+  if (!bpm || !audioCtx) return;
+  const spb = 60 / bpm;
+  // 100ms ileriyi önceden zamanla (kesin tempo)
+  while (kickNextTime < audioCtx.currentTime + 0.1) {
+    playKick(kickNextTime);
+    kickNextTime += spb;
+  }
+}
+function startKick() {
+  const bpm = currentSong && currentSong.bpm;
+  if (!bpm) { toast('Önce ⋯ → Düzenle ile tempo (BPM) gir'); return; }
+  if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return; }
+  stopKick();
+  kickOn = true;
+  $('kick-toggle').classList.add('on');
+  kickNextTime = audioCtx.currentTime + 0.06;
+  kickScheduler();
+  kickSchedTimer = setInterval(kickScheduler, 25);
+}
+function stopKick() {
+  kickOn = false;
+  $('kick-toggle').classList.remove('on');
+  if (kickSchedTimer) clearInterval(kickSchedTimer);
+  kickSchedTimer = null;
+}
+function toggleKick() { kickOn ? stopKick() : startKick(); }
 
 // Tempoya vur (tap tempo) — düzenleme formunda
 let tapTimes = [];
@@ -1568,6 +1627,7 @@ $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
 $('metro-toggle').addEventListener('click', toggleMetro);
+$('kick-toggle').addEventListener('click', toggleKick);
 $('edit-tap').addEventListener('click', tapTempo);
 
 // Etiket menüsü
