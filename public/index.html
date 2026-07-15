@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=13" />
-  <link rel="stylesheet" href="/style.css?v=13" />
+  <link rel="stylesheet" href="/fonts.css?v=14" />
+  <link rel="stylesheet" href="/style.css?v=14" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -172,7 +172,18 @@
             <input id="manual-artist" type="text" placeholder="Sanatçı (ör. Sezen Aksu)" />
             <input id="manual-song" type="text" placeholder="Şarkı adı (ör. Firuze)" />
           </div>
-          <input id="manual-key" type="text" class="manual-key" placeholder="Orijinal ton — opsiyonel (ör. Am)" />
+          <div class="manual-row">
+            <input id="manual-key" type="text" class="manual-key" placeholder="Orijinal ton (ör. Am)" />
+            <select id="manual-color" class="manual-key manual-select">
+              <option value="">Tür: otomatik</option>
+              <option value="blue">Slow</option>
+              <option value="green">Pop</option>
+              <option value="red">Rock</option>
+              <option value="orange">Türkü</option>
+              <option value="purple">Arabesk</option>
+              <option value="gray">Cover</option>
+            </select>
+          </div>
           <textarea id="manual-body" placeholder="Akorları ve sözleri buraya yapıştır…" spellcheck="false"></textarea>
           <button type="submit" class="primary-btn manual-submit">Setliste Ekle</button>
         </form>
@@ -217,7 +228,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v13</b></span>
+        <span class="muted">Sürüm <b id="app-version">v14</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -285,6 +296,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=13"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>

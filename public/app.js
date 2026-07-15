@@ -187,16 +187,18 @@ function colorTint(key) { const c = COLORS.find((x) => x.key === key); return c 
 const ARTIST_GENRE = {};
 (function () {
   const map = {
-    red: ['duman', 'manga', 'sebnem ferah', 'mor ve otesi', 'pentagram', 'athena', 'kurban', 'pinhani', 'gripin', 'teoman', 'yuksek sadakat', 'badem', 'model', 'redd', 'emre aydin', 'replikas', 'kargo', 'bulutsuzluk ozlemi', 'feridun duzagac', 'hayko cepkin', 'ogun sanlisoy', 'adamlar', 'son feci bisiklet', 'dolu kadehi ters tut', 'gece yolculari', 'zakkum', 'madrigal', 'kramp', 'ezginin gunlugu', 'moron', 'palmiyeler', 'buyuk ev ablukada', 'kirmizi', 'sattas', 'leman sam'],
-    green: ['tarkan', 'sezen aksu', 'kenan dogulu', 'murat boz', 'hadise', 'hande yener', 'sertab erener', 'gulsen', 'simge', 'mustafa sandal', 'sila', 'aleyna tilki', 'edis', 'mabel matiz', 'ajda pekkan', 'nilufer', 'serdar ortac', 'gokhan ozen', 'bengu', 'ziynet sali', 'gulben ergen', 'demet akalin', 'funda arar', 'gokhan turkmen', 'buray', 'zeynep bastik', 'irem derici', 'feride hilal akin', 'aleyna', 'ece seckin', 'zerrin ozer', 'levent yuksel', 'yalin', 'gokhan kirdar', 'athena', 'kenan'],
-    purple: ['muslum gurses', 'orhan gencebay', 'ferdi tayfur', 'ibrahim tatlises', 'bergen', 'ceylan', 'azer bulbul', 'kibariye', 'hakki bulut', 'mahsun kirmizigul', 'cengiz kurtoglu', 'ozcan deniz', 'ismail yk', 'sibel can', 'emrah', 'selami sahin', 'ebru gundes', 'yildiz tilbe', 'mustafa keser', 'coskun sabah', 'zeki muren', 'bulent ersoy'],
-    orange: ['neset ertas', 'asik veysel', 'musa eroglu', 'arif sag', 'belkis akkale', 'kubat', 'sabahat akkiraz', 'ozay gonlum', 'asik mahzuni serif', 'mahzuni serif', 'davut sulari', 'erkan ogur', 'selda bagcan', 'ruhi su', 'tolga sag', 'cengiz ozkan', 'izzet altinmese', 'sinan yilmaz', 'onur akin'],
+    // blue = Slow / akustik / şarkı-söz (yavaş ballad ağırlıklı)
+    blue: ['onur can ozcan', 'cem adrian', 'kaan bosnak', 'deniz tekin', 'sena sener', 'ceylan ertem', 'melike sahin', 'gaye su akyol', 'evdeki saat', 'leyla the band', 'sen', 'no.1', 'sagopa kajmer', 'beduk', 'yuzyuzeyken konusuruz', 'ah kosmos', 'jehan barbur', 'kalben', 'nova norda', 'melek mosso', 'ilyas yalcintas', 'edis?', 'gazapizm', 'ezhel?', 'konyali'],
+    red: ['duman', 'manga', 'sebnem ferah', 'mor ve otesi', 'pentagram', 'athena', 'kurban', 'pinhani', 'gripin', 'teoman', 'yuksek sadakat', 'badem', 'model', 'redd', 'emre aydin', 'replikas', 'kargo', 'bulutsuzluk ozlemi', 'feridun duzagac', 'hayko cepkin', 'ogun sanlisoy', 'adamlar', 'son feci bisiklet', 'dolu kadehi ters tut', 'gece yolculari', 'zakkum', 'madrigal', 'kramp', 'ezginin gunlugu', 'moron', 'palmiyeler', 'buyuk ev ablukada', 'kirmizi', 'sattas', 'leman sam', 'cem karaca', 'baris manco', 'erkin koray', 'edip akbayram', 'fikret kizilok', 'mogollar', 'nekropsi', 'coma', 'pilli bebek', 'aylin aslim', 'demir demirkan', 'kramponlar', 'stramiliti', 'no.1?', 'birol namoglu', 'kramp', '86', 'sagopa', 'the ringo jets', 'lin pesto', 'dodo'],
+    green: ['tarkan', 'sezen aksu', 'kenan dogulu', 'murat boz', 'hadise', 'hande yener', 'sertab erener', 'gulsen', 'simge', 'mustafa sandal', 'sila', 'aleyna tilki', 'edis', 'mabel matiz', 'ajda pekkan', 'nilufer', 'serdar ortac', 'gokhan ozen', 'bengu', 'ziynet sali', 'gulben ergen', 'demet akalin', 'funda arar', 'gokhan turkmen', 'buray', 'zeynep bastik', 'irem derici', 'feride hilal akin', 'aleyna', 'ece seckin', 'zerrin ozer', 'levent yuksel', 'yalin', 'gokhan kirdar', 'kenan', 'gokce', 'petek dincoz', 'can bonomo', 'nazan oncel', 'ilhan sesen', 'sezen', 'gokhan tepe', 'tuvana', 'ozgun', 'reynmen', 'semicenk', 'lvbel c5', 'mahmut orhan', 'zeynep', 'melis', 'ecem', 'dilara', 'ferhat gocer', 'alisan', 'gozde', 'sagopa?', 'manuel', 'derya ulug', 'kubilay aka', 'ada', 'merve', 'seksendort', 'model?'],
+    purple: ['muslum gurses', 'orhan gencebay', 'ferdi tayfur', 'ibrahim tatlises', 'bergen', 'ceylan', 'azer bulbul', 'kibariye', 'hakki bulut', 'mahsun kirmizigul', 'cengiz kurtoglu', 'ozcan deniz', 'ismail yk', 'sibel can', 'emrah', 'selami sahin', 'ebru gundes', 'yildiz tilbe', 'mustafa keser', 'coskun sabah', 'zeki muren', 'bulent ersoy', 'hakan altun', 'ferdi ozbegen', 'gokhan guney', 'intizar', 'deniz seki', 'mine kosan', 'gulden karabocek', 'necati alsan', 'ismail turut', 'ozer sarigul', 'ozan', 'ankarali namik', 'seyyal taner?', 'fatih kisaparmak', 'orhan olmez', 'ahmet selcuk ilkan', 'kucuk emrah', 'gulhan?'],
+    orange: ['neset ertas', 'asik veysel', 'musa eroglu', 'arif sag', 'belkis akkale', 'kubat', 'sabahat akkiraz', 'ozay gonlum', 'asik mahzuni serif', 'mahzuni serif', 'davut sulari', 'erkan ogur', 'selda bagcan', 'ruhi su', 'tolga sag', 'cengiz ozkan', 'izzet altinmese', 'sinan yilmaz', 'onur akin', 'ahmet kaya', 'zara', 'resul dindar', 'mahmut tuncer', 'grup yorum', 'kardes turkuler', 'aynur dogan', 'ilkay akkaya', 'ferhat tunc', 'yavuz bingol', 'nilufer saritas', 'sabahat', 'ozan?', 'kivircik ali', 'ismail altunsaray', 'musa', 'bajar', 'koma', 'sivan perwer', 'volkan konak', 'ozcan turkmen', 'gulay', 'ozgur bayram'],
   };
-  for (const key in map) map[key].forEach((a) => { ARTIST_GENRE[a] = key; });
+  for (const key in map) map[key].forEach((a) => { if (!a.includes('?')) ARTIST_GENRE[a] = key; });
 })();
 
 function guessGenre(artist) {
-  const n = trSimplify(artist || '').toLowerCase().trim();
+  const n = trSimplify(artist || '').toLowerCase().replace(/\s+/g, ' ').trim();
   if (!n) return '';
   if (ARTIST_GENRE[n]) return ARTIST_GENRE[n];
   // "feat."/parantez vb. temizle, ilk sanatçıyı dene
@@ -841,7 +843,7 @@ function manualAdd(e) {
     body,
     source: '',
     transpose: 0,
-    color: guessGenre(artist),
+    color: $('manual-color').value || guessGenre(artist),
     addedAt: Date.now(),
   };
   currentSetlist().songs.push(song);
@@ -850,6 +852,7 @@ function manualAdd(e) {
   $('manual-artist').value = '';
   $('manual-song').value = '';
   $('manual-key').value = '';
+  $('manual-color').value = '';
   $('manual-body').value = '';
   closeSearch();
   toast('“' + songName + '” eklendi');
