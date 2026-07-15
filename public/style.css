@@ -124,11 +124,10 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .song-list { flex: 1; overflow-y: auto; padding: 8px 10px calc(16px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
 /* A-Z modunda sürükleme tutamacı gizlenir */
 .song-list.nodrag .drag { display: none; }
-/* Etiket rengi: kartın sol kenarında şerit */
-.song-card { position: relative; overflow: hidden; }
-.song-card .color-bar {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
-}
+/* Tür etiketi: tüm kart o renge boyanır (arka plan + kenarlık inline gelir) */
+.song-card { position: relative; }
+.song-card.tinted .song-num { background: rgba(0,0,0,0.28); color: var(--text); }
+.tag-chip { color: #0b0d12 !important; font-weight: 700; }
 .song-card .tag-btn {
   background: transparent; border: none; color: var(--muted);
   font-size: 17px; padding: 4px 6px; cursor: pointer;

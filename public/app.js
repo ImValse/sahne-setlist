@@ -169,17 +169,18 @@ function setSortMode(mode) {
   renderList();
 }
 
-// Etiket renkleri (renk = kategori)
+// Etiket renkleri (renk = şarkı türü)
 const COLORS = [
-  { key: 'blue', name: 'Slow', css: '#4c8dff' },
-  { key: 'red', name: 'Hızlı', css: '#ff5a5a' },
-  { key: 'green', name: 'Cover', css: '#35d07f' },
-  { key: 'purple', name: 'Bizim', css: '#a066ff' },
-  { key: 'orange', name: 'Isınma', css: '#ff9f43' },
-  { key: 'gray', name: 'Diğer', css: '#8a94a6' },
+  { key: 'blue', name: 'Slow', css: '#4c8dff', tint: 'rgba(76,141,255,0.22)' },
+  { key: 'green', name: 'Pop', css: '#35d07f', tint: 'rgba(53,208,127,0.22)' },
+  { key: 'red', name: 'Rock', css: '#ff5a5a', tint: 'rgba(255,90,90,0.22)' },
+  { key: 'orange', name: 'Türkü', css: '#ff9f43', tint: 'rgba(255,159,67,0.22)' },
+  { key: 'purple', name: 'Arabesk', css: '#a066ff', tint: 'rgba(160,102,255,0.22)' },
+  { key: 'gray', name: 'Cover', css: '#8a94a6', tint: 'rgba(138,148,166,0.24)' },
 ];
 function colorCss(key) { const c = COLORS.find((x) => x.key === key); return c ? c.css : ''; }
 function colorName(key) { const c = COLORS.find((x) => x.key === key); return c ? c.name : ''; }
+function colorTint(key) { const c = COLORS.find((x) => x.key === key); return c ? c.tint : ''; }
 
 let filterText = '';
 
@@ -210,16 +211,18 @@ function renderList() {
     }
     shown++;
     const card = document.createElement('div');
-    card.className = 'song-card';
+    card.className = 'song-card' + (song.color ? ' tinted' : '');
     card.dataset.id = song.id;
+    if (song.color) {
+      card.style.background = colorTint(song.color);
+      card.style.borderColor = colorCss(song.color);
+    }
     const pending = !song.body && song.source ? '<span class="badge">indirilmedi ⬇</span>' : '';
     const dur = song.duration ? `<div class="badge">${fmtDuration(song.duration)}</div>` : '';
-    const cbar = song.color ? `<div class="color-bar" style="background:${colorCss(song.color)}"></div>` : '';
-    const tag = song.color ? `<span class="badge" style="color:${colorCss(song.color)}">${escapeHtml(colorName(song.color))}</span>` : '';
+    const tag = song.color ? `<span class="badge tag-chip" style="background:${colorCss(song.color)}">${escapeHtml(colorName(song.color))}</span>` : '';
     const segue = song.segue ? '<span class="segue-mark" title="Sonrakine bağlı">🔗</span>' : '';
     card.innerHTML =
-      `${cbar}
-       <div class="song-num">${i + 1}</div>
+      `<div class="song-num">${i + 1}</div>
        <div class="info">
          <div class="t">${escapeHtml(song.song || song.title || 'Şarkı')} ${segue}</div>
          <div class="a">${escapeHtml(song.artist || '')}</div>
@@ -228,7 +231,7 @@ function renderList() {
        ${dur}
        ${song.transpose ? `<div class="badge">${song.transpose > 0 ? '+' : ''}${song.transpose}</div>` : ''}
        ${pending}
-       <button class="tag-btn" data-tag title="Etiket/renk/segue">🏷</button>
+       <button class="tag-btn" data-tag title="Tür/renk/segue">🏷</button>
        <div class="drag" data-handle>⠿</div>`;
     card.addEventListener('click', (ev) => {
       if (ev.target.closest('[data-tag]')) { openLabel(song.id); return; }
