@@ -596,8 +596,8 @@ async function openSong(songId) {
     c.classList.toggle('active', c.dataset.view === viewMode));
   startSongTimer();
   requestWakeLock();
-  stopMetro();
   stopKick();
+  updateBpmUI();
 
   // Tembel yukleme: govde bos ama kaynak varsa internetten cek
   if (!song.body && song.source) {
@@ -1213,7 +1213,6 @@ function showList() {
   clearTimeout(autoPlayTimer);
   stopScroll();
   stopSongTimer();
-  stopMetro();
   stopKick();
   exitStage();
   releaseWakeLock();
@@ -1311,37 +1310,15 @@ function toggleStage() {
 }
 
 /* ==========================================================================
- * METRONOM (görsel flaş)
+ * METRONOM — sesli (kick + snare), BPM slider, düğmede görsel darbe
  * ========================================================================== */
-let metroInterval = null;
-function startMetro() {
-  const bpm = currentSong && currentSong.bpm;
-  if (!bpm) { toast('Önce ⋯ → Düzenle ile tempo (BPM) gir'); return; }
-  stopMetro();
-  const btn = $('metro-toggle');
-  btn.classList.add('on');
-  const beat = 60000 / bpm;
-  const flash = () => {
-    btn.classList.add('beat');
-    setTimeout(() => btn.classList.remove('beat'), Math.min(110, beat / 2.5));
-  };
-  flash();
-  metroInterval = setInterval(flash, beat);
-}
-function stopMetro() {
-  if (metroInterval) clearInterval(metroInterval);
-  metroInterval = null;
-  const btn = $('metro-toggle');
-  btn.classList.remove('on');
-  btn.classList.remove('beat');
-}
-function toggleMetro() { metroInterval ? stopMetro() : startMetro(); }
-
-/* ---------- Sesli metronom: davul KICK (Web Audio, sentezlenmiş) ---------- */
 let audioCtx = null;
 let kickOn = false;
 let kickSchedTimer = null;
 let kickNextTime = 0;
+let beatIndex = 0;
+let noiseBuffer = null;
+
 function ensureAudio() {
   if (!audioCtx) {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1351,7 +1328,8 @@ function ensureAudio() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return true;
 }
-// Tek bir kick vuruşu sentezle (150Hz -> 50Hz düşen sinüs + hızlı sönüm)
+
+// Kick: alçalan sinüs + hızlı sönüm (tok bas vuruş)
 function playKick(t) {
   const ctx = audioCtx;
   const osc = ctx.createOscillator();
@@ -1365,38 +1343,97 @@ function playKick(t) {
   osc.connect(gain); gain.connect(ctx.destination);
   osc.start(t); osc.stop(t + 0.25);
 }
+
+// Snare: beyaz gürültü (highpass) + kısa tonal gövde (trampet çıtırtısı)
+function getNoiseBuffer() {
+  if (!noiseBuffer) {
+    const len = Math.floor(audioCtx.sampleRate * 0.2);
+    noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuffer;
+}
+function playSnare(t) {
+  const ctx = audioCtx;
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer();
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 1400;
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.7, t);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.2);
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle'; osc.frequency.value = 190;
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.5, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+  osc.connect(og); og.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.1);
+}
+
+// Kick düğmesini her vuruşta yak (görsel darbe, sesle senkron)
+function flashKickBtn(t) {
+  const delay = Math.max(0, (t - audioCtx.currentTime) * 1000);
+  setTimeout(() => {
+    if (!kickOn) return;
+    const b = $('kick-toggle');
+    b.classList.add('beat');
+    setTimeout(() => b.classList.remove('beat'), 90);
+  }, delay);
+}
+
 function kickScheduler() {
   const bpm = currentSong && currentSong.bpm;
   if (!bpm || !audioCtx) return;
   const spb = 60 / bpm;
-  // 100ms ileriyi önceden zamanla (kesin tempo)
-  while (kickNextTime < audioCtx.currentTime + 0.1) {
-    playKick(kickNextTime);
+  while (kickNextTime < audioCtx.currentTime + 0.12) {
+    if (beatIndex % 2 === 0) playKick(kickNextTime); else playSnare(kickNextTime); // 1&3 kick, 2&4 snare
+    flashKickBtn(kickNextTime);
+    beatIndex = (beatIndex + 1) % 4;
     kickNextTime += spb;
   }
 }
 function startKick() {
+  if (currentSong && !currentSong.bpm) setBpm($('bpm-slider').value); // slider değerini kaydet
   const bpm = currentSong && currentSong.bpm;
-  if (!bpm) { toast('Önce ⋯ → Düzenle ile tempo (BPM) gir'); return; }
+  if (!bpm) return;
   if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return; }
   stopKick();
   kickOn = true;
+  beatIndex = 0;
   $('kick-toggle').classList.add('on');
-  kickNextTime = audioCtx.currentTime + 0.06;
+  kickNextTime = audioCtx.currentTime + 0.08;
   kickScheduler();
   kickSchedTimer = setInterval(kickScheduler, 25);
 }
 function stopKick() {
   kickOn = false;
-  $('kick-toggle').classList.remove('on');
+  const b = $('kick-toggle');
+  b.classList.remove('on'); b.classList.remove('beat');
   if (kickSchedTimer) clearInterval(kickSchedTimer);
   kickSchedTimer = null;
 }
 function toggleKick() { kickOn ? stopKick() : startKick(); }
 
-// Tempoya vur (tap tempo) — düzenleme formunda
+/* ---------- BPM: şarkı içinde slider + tap ---------- */
+function updateBpmUI() {
+  const bpm = (currentSong && currentSong.bpm) || 100;
+  $('bpm-slider').value = bpm;
+  $('bpm-val').textContent = bpm;
+}
+function setBpm(v) {
+  v = Math.max(40, Math.min(240, parseInt(v, 10) || 100));
+  if (currentSong) { currentSong.bpm = v; saveState(); }
+  $('bpm-slider').value = v;
+  $('bpm-val').textContent = v;
+}
+
+// Tempoya vur (tap tempo)
 let tapTimes = [];
-function tapTempo() {
+function tapTempoTo(setter) {
   const now = Date.now();
   tapTimes = tapTimes.filter((t) => now - t < 3000);
   tapTimes.push(now);
@@ -1404,9 +1441,11 @@ function tapTempo() {
     let sum = 0;
     for (let i = 1; i < tapTimes.length; i++) sum += tapTimes[i] - tapTimes[i - 1];
     const bpm = Math.round(60000 / (sum / (tapTimes.length - 1)));
-    if (bpm >= 30 && bpm <= 300) $('edit-bpm').value = bpm;
+    if (bpm >= 40 && bpm <= 240) setter(bpm);
   }
 }
+function tapTempo() { tapTempoTo((bpm) => { $('edit-bpm').value = bpm; }); } // düzenleme formu
+function bpmTap() { tapTempoTo((bpm) => setBpm(bpm)); }                       // şarkı içi
 
 /* ==========================================================================
  * KLAVYE / PEDAL İLE GEZİNME
@@ -1626,8 +1665,9 @@ $('stage-font-down').addEventListener('click', () => changeFont(-2));
 $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
-$('metro-toggle').addEventListener('click', toggleMetro);
 $('kick-toggle').addEventListener('click', toggleKick);
+$('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
+$('bpm-tap').addEventListener('click', bpmTap);
 $('edit-tap').addEventListener('click', tapTempo);
 
 // Etiket menüsü

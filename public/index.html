@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=17" />
-  <link rel="stylesheet" href="/style.css?v=17" />
+  <link rel="stylesheet" href="/fonts.css?v=18" />
+  <link rel="stylesheet" href="/style.css?v=18" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -88,9 +88,14 @@
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
       </div>
       <div class="ctrl-group">
+        <span class="ctrl-label">Metronom</span>
+        <button id="kick-toggle" class="chip">🥁 Çal</button>
+        <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
+        <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
+        <span id="bpm-val" class="tr-value">100</span>
+      </div>
+      <div class="ctrl-group">
         <button id="stage-mode" class="chip">🎬 Sahne</button>
-        <button id="metro-toggle" class="chip">🥁 Flaş</button>
-        <button id="kick-toggle" class="chip">🔊 Kick</button>
       </div>
     </div>
 
@@ -111,7 +116,6 @@
     </div>
   </div>
 
-  <div id="metro-flash" class="metro-flash"></div>
   <button id="stage-exit" class="stage-exit hidden">✕ Çık</button>
   <div id="stage-ctrls" class="stage-ctrls">
     <span class="stage-grip" data-grip title="Sürükle: taşı">⠿</span>
@@ -230,7 +234,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v17</b></span>
+        <span class="muted">Sürüm <b id="app-version">v18</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -307,6 +311,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=17"></script>
+  <script src="/app.js?v=18"></script>
 </body>
 </html>

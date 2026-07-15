@@ -171,15 +171,15 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
 .tap-btn { white-space: nowrap; }
 
-/* Metronom: yalnızca düğme yanıp söner (ekranı yormaz) */
-.metro-flash { display: none; }
-#metro-toggle.beat {
+/* Metronom kick düğmesi: her vuruşta yanıp söner (ekranı yormaz) */
+#kick-toggle.beat {
   background: #fff !important;
   color: #000 !important;
   border-color: #fff !important;
-  transform: scale(1.06);
+  transform: scale(1.08);
 }
 .chip.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+.bpm-slider { width: 110px; accent-color: var(--accent); vertical-align: middle; }
 
 /* Sahne modu: sade tam ekran */
 body.stage #song-controls,
