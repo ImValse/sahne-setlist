@@ -442,6 +442,11 @@ function updateNav() {
   $('nav-next').disabled = !next;
   $('nav-prev-name').textContent = prev ? (prev.song || prev.title || 'Şarkı') : '—';
   $('nav-next-name').textContent = next ? (next.song || next.title || 'Şarkı') : '—';
+  // Sahne modu alt çubuğu
+  $('stage-prev').disabled = !prev;
+  $('stage-next').disabled = !next;
+  $('stage-prev').textContent = prev ? '‹ ' + (prev.song || prev.title || 'Önceki') : '‹ Önceki';
+  $('stage-next').textContent = next ? (next.song || next.title || 'Sonraki') + ' ›' : 'Sonraki ›';
 }
 
 let viewMode = localStorage.getItem('sahne_viewmode') || 'both';
@@ -1057,12 +1062,12 @@ function startMetro() {
   const bpm = currentSong && currentSong.bpm;
   if (!bpm) { toast('Önce ⋯ → Düzenle ile tempo (BPM) gir'); return; }
   stopMetro();
-  $('metro-toggle').classList.add('on');
+  const btn = $('metro-toggle');
+  btn.classList.add('on');
   const beat = 60000 / bpm;
   const flash = () => {
-    const f = $('metro-flash');
-    f.classList.add('on');
-    setTimeout(() => f.classList.remove('on'), Math.min(90, beat / 3));
+    btn.classList.add('beat');
+    setTimeout(() => btn.classList.remove('beat'), Math.min(110, beat / 2.5));
   };
   flash();
   metroInterval = setInterval(flash, beat);
@@ -1070,8 +1075,9 @@ function startMetro() {
 function stopMetro() {
   if (metroInterval) clearInterval(metroInterval);
   metroInterval = null;
-  $('metro-toggle').classList.remove('on');
-  $('metro-flash').classList.remove('on');
+  const btn = $('metro-toggle');
+  btn.classList.remove('on');
+  btn.classList.remove('beat');
 }
 function toggleMetro() { metroInterval ? stopMetro() : startMetro(); }
 
@@ -1316,6 +1322,8 @@ $('btn-back').addEventListener('click', showList);
 $('btn-song-menu').addEventListener('click', openSongSheet);
 $('nav-prev').addEventListener('click', () => gotoRelative(-1));
 $('nav-next').addEventListener('click', () => gotoRelative(1));
+$('stage-prev').addEventListener('click', () => gotoRelative(-1));
+$('stage-next').addEventListener('click', () => gotoRelative(1));
 
 $('tr-up').addEventListener('click', () => setTranspose(1));
 $('tr-down').addEventListener('click', () => setTranspose(-1));
