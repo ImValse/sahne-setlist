@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Setlist" />
+  <title>Sahne Setlist</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="stylesheet" href="/fonts.css?v=7" />
+  <link rel="stylesheet" href="/style.css?v=7" />
+</head>
+<body>
+  <!-- ================= LISTE GORUNUMU ================= -->
+  <div id="view-list" class="view">
+    <header class="topbar">
+      <button id="btn-setlists" class="icon-btn" title="Setlistler">☰</button>
+      <div class="topbar-title">
+        <span id="current-setlist-name">Setlist</span>
+        <span id="current-setlist-count" class="muted"></span>
+      </div>
+      <button id="btn-search" class="primary-btn">＋ Şarkı</button>
+    </header>
+
+    <div class="list-sortbar">
+      <span class="lbl">Sırala:</span>
+      <button class="sortchip active" data-sort="manual">↕ Kendi sıram</button>
+      <button class="sortchip" data-sort="artist">Sanatçı A-Z</button>
+      <button class="sortchip" data-sort="song">Şarkı A-Z</button>
+    </div>
+
+    <div id="song-list" class="song-list"></div>
+
+    <div id="empty-list" class="empty">
+      <p class="big">Bu setlist boş</p>
+      <p class="muted">Sağ üstteki <b>＋ Şarkı</b> ile internetten akor & söz ekle.</p>
+    </div>
+  </div>
+
+  <!-- ================= SARKI GORUNUMU ================= -->
+  <div id="view-song" class="view hidden">
+    <header class="topbar song-topbar">
+      <button id="btn-back" class="icon-btn">‹ Liste</button>
+      <div class="topbar-title">
+        <span id="song-title">—</span>
+        <span id="song-artist" class="muted"></span>
+      </div>
+      <button id="btn-song-menu" class="icon-btn">⋯</button>
+    </header>
+
+    <div id="song-controls" class="song-controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Ton</span>
+        <button id="tr-down" class="round-btn">−</button>
+        <span id="tr-value" class="tr-value">0</span>
+        <button id="tr-up" class="round-btn">＋</button>
+        <button id="tr-reset" class="chip">sıfırla</button>
+        <span id="key-label" class="muted key-label"></span>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Punto</span>
+        <button id="font-down" class="round-btn">A−</button>
+        <button id="font-up" class="round-btn">A＋</button>
+        <button id="font-fit" class="chip" title="Ekrana sığdır">↔ Sığdır</button>
+      </div>
+      <div class="ctrl-group">
+        <button id="scroll-toggle" class="chip scroll-chip">▶ Kaydır</button>
+        <input id="scroll-speed" class="speed" type="range" min="1" max="10" value="4" />
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Görünüm</span>
+        <button class="viewchip active" data-view="both">İkisi</button>
+        <button class="viewchip" data-view="lyrics">Söz</button>
+        <button class="viewchip" data-view="chords">Akor</button>
+      </div>
+      <div class="ctrl-group">
+        <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
+      </div>
+    </div>
+
+    <div id="song-nav" class="song-nav">
+      <button id="nav-prev" class="nav-btn">
+        <span class="nav-ar">‹</span>
+        <span class="nav-txt"><span class="nav-cap">Önceki</span><span id="nav-prev-name" class="nav-name">—</span></span>
+      </button>
+      <button id="nav-next" class="nav-btn nav-next">
+        <span class="nav-txt"><span class="nav-cap">Sonraki</span><span id="nav-next-name" class="nav-name">—</span></span>
+        <span class="nav-ar">›</span>
+      </button>
+    </div>
+
+    <div id="song-scroll" class="song-scroll">
+      <div id="song-loading" class="song-loading hidden"><span class="spinner"></span> Yükleniyor…</div>
+      <pre id="song-body" class="song-body"></pre>
+    </div>
+  </div>
+
+  <div id="progress" class="progress hidden"></div>
+
+  <!-- ================= ARAMA / EKLEME MODAL ================= -->
+  <div id="modal-search" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <b>Şarkı Ekle</b>
+        <button id="search-close" class="icon-btn">✕</button>
+      </div>
+
+      <div class="tabs">
+        <button id="tab-online" class="tab active">🔎 Ara</button>
+        <button id="tab-repertoire" class="tab">📚 Repertuar</button>
+        <button id="tab-manual" class="tab">✎ Elle</button>
+      </div>
+
+      <!-- İnternetten ara -->
+      <div id="pane-online" class="pane">
+        <form id="search-form" class="search-row">
+          <input id="search-input" type="search" placeholder="Şarkıcı veya şarkı adı…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Ara</button>
+        </form>
+        <p class="hint muted">Kaynak: repertuarim.com — akor & söz birlikte gelir.</p>
+        <div id="search-status" class="search-status"></div>
+        <div id="search-results" class="search-results"></div>
+      </div>
+
+      <!-- Repertuar içe aktar (repertuarim.com repertuar linki) -->
+      <div id="pane-repertoire" class="pane hidden">
+        <p class="hint muted">repertuarim.com'daki bir repertuarın (kendi listen ya da tür repertuarı) linkini yapıştır. İçindeki tüm şarkılar yeni bir setlist olarak eklenir.</p>
+        <form id="repertoire-form" class="search-row">
+          <input id="repertoire-url" type="url" placeholder="https://www.repertuarim.com/repertuar/…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Getir</button>
+        </form>
+        <div id="repertoire-status" class="search-status"></div>
+        <div id="repertoire-preview" class="search-results"></div>
+        <button id="repertoire-import" class="primary-btn manual-submit hidden">Setlist Olarak Ekle</button>
+      </div>
+
+      <!-- Elle ekle (herhangi bir siteden yapıştır) -->
+      <div id="pane-manual" class="pane hidden">
+        <p class="hint muted">Başka bir siteden (akorlar.com, akorculuk.com…) akor + sözü kopyalayıp buraya yapıştır. Boşlukların bozulmaması için akorların söz üstünde hizalı kaldığından emin ol.</p>
+        <form id="manual-form">
+          <div class="manual-row">
+            <input id="manual-artist" type="text" placeholder="Sanatçı (ör. Sezen Aksu)" />
+            <input id="manual-song" type="text" placeholder="Şarkı adı (ör. Firuze)" />
+          </div>
+          <input id="manual-key" type="text" class="manual-key" placeholder="Orijinal ton — opsiyonel (ör. Am)" />
+          <textarea id="manual-body" placeholder="Akorları ve sözleri buraya yapıştır…" spellcheck="false"></textarea>
+          <button type="submit" class="primary-btn manual-submit">Setliste Ekle</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETLIST MODAL ================= -->
+  <div id="modal-setlists" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <b>Setlistlerim</b>
+        <button id="setlists-close" class="icon-btn">✕</button>
+      </div>
+      <div id="setlist-items" class="setlist-items"></div>
+      <form id="setlist-form" class="search-row">
+        <input id="setlist-input" type="text" placeholder="Yeni setlist adı (ör. Cuma - Nostalji Bar)" />
+        <button type="submit" class="primary-btn">Oluştur</button>
+      </form>
+
+      <div class="sync-box">
+        <div class="sync-title">📡 Cihazlar Arası Eşitleme</div>
+        <p class="hint muted">Aynı grup kodunu giren tüm telefonlar aynı setlistleri paylaşır — birinde yapılan değişiklik diğerlerine geçer. (Herkes internetten aynı adrese bağlı olmalı.)</p>
+        <form id="sync-form" class="search-row">
+          <input id="sync-room" type="text" placeholder="Grup kodu (ör. bizimgrup2026)" autocomplete="off" />
+          <button id="sync-connect" type="submit" class="primary-btn">Bağlan</button>
+        </form>
+        <div class="sync-foot">
+          <span id="sync-status" class="muted">Kapalı (her cihaz ayrı)</span>
+          <button id="sync-disconnect" class="chip hidden">Kapat</button>
+        </div>
+      </div>
+
+      <div class="sync-box">
+        <div class="sync-title">💾 Yedekle / Taşı</div>
+        <p class="hint muted">Setlistlerin bu cihazın tarayıcısında saklanır. Başka bir adrese (ör. yeni sitene) taşımak ya da yedeklemek için: burada <b>indir</b>, yeni sitede <b>geri yükle</b>.</p>
+        <div class="backup-row">
+          <button id="btn-export" class="chip">⬇ Yedeği indir</button>
+          <button id="btn-import" class="chip">⬆ Geri yükle</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden />
+        </div>
+      </div>
+
+      <div class="app-foot">
+        <span class="muted">Sürüm <b id="app-version">v7</b></span>
+        <button id="btn-force-update" class="chip">↻ Güncelle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SARKI MENU (alt sayfa) ================= -->
+  <div id="sheet-song" class="sheet hidden">
+    <div class="sheet-card">
+      <button id="song-edit" class="sheet-btn">✎ Düzenle (akor/söz/süre)</button>
+      <button id="song-copy" class="sheet-btn">⧉ Başka setliste ekle</button>
+      <button id="song-move-up" class="sheet-btn">↑ Yukarı taşı</button>
+      <button id="song-move-down" class="sheet-btn">↓ Aşağı taşı</button>
+      <button id="song-refresh" class="sheet-btn">↻ İnternetten yenile</button>
+      <a id="song-open-source" class="sheet-btn" target="_blank" rel="noopener">🔗 Kaynağı aç</a>
+      <button id="song-delete" class="sheet-btn danger">🗑 Setlistten sil</button>
+      <button id="song-cancel" class="sheet-btn cancel">Vazgeç</button>
+    </div>
+  </div>
+
+  <!-- ================= ŞARKI DÜZENLE MODAL ================= -->
+  <div id="modal-edit" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <b>Şarkıyı Düzenle</b>
+        <button id="edit-close" class="icon-btn">✕</button>
+      </div>
+      <p class="hint muted">Akor/sözü düzelt, orijinal tonu ve süreyi gir. Akorların söz üstünde doğru durması için boşlukları koru.</p>
+      <form id="edit-form">
+        <div class="manual-row">
+          <input id="edit-artist" type="text" placeholder="Sanatçı" />
+          <input id="edit-song" type="text" placeholder="Şarkı adı" />
+        </div>
+        <div class="manual-row">
+          <input id="edit-key" type="text" class="manual-key" placeholder="Orijinal ton (ör. Am)" />
+          <input id="edit-duration" type="text" class="manual-key" placeholder="Süre (ör. 3:45)" />
+        </div>
+        <textarea id="edit-body" spellcheck="false"></textarea>
+        <button type="submit" class="primary-btn manual-submit">Kaydet</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= SETLIST SEÇ (kopyala) ================= -->
+  <div id="sheet-copy" class="sheet hidden">
+    <div class="sheet-card">
+      <div class="sheet-title">Hangi setliste eklensin?</div>
+      <div id="copy-list"></div>
+      <button id="copy-cancel" class="sheet-btn cancel">Vazgeç</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js?v=7"></script>
+</body>
+</html>

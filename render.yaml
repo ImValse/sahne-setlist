@@ -1,0 +1,16 @@
+# Render.com blueprint - "New > Blueprint" ile bu repoyu bağlayınca otomatik kurar.
+services:
+  - type: web
+    name: sahne-setlist
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+    # Kalıcı eşitleme verisi için (opsiyonel, ücretli plan gerektirir):
+    # disk:
+    #   name: setlist-data
+    #   mountPath: /var/data
+    # ve ortam değişkeni: SYNC_FILE = /var/data/sync.json

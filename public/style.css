@@ -1,0 +1,473 @@
+:root {
+  --bg: #0b0d12;
+  --bg-2: #141821;
+  --bg-3: #1c2230;
+  --line: #2a3140;
+  --text: #eef2f8;
+  --muted: #8a94a6;
+  --accent: #4c8dff;
+  --accent-2: #2f6bd8;
+  --danger: #ff5a5a;
+  --chord: #ffd24a;
+  --ok: #35d07f;
+  --radius: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overscroll-behavior-y: none;
+}
+
+body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+.view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-weight: 400; }
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(10px + var(--safe-top)) 12px 10px;
+  background: linear-gradient(180deg, var(--bg-2), rgba(20,24,33,0.85));
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.topbar-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#current-setlist-name, #song-title { font-size: 18px; font-weight: 700; }
+#current-setlist-count, #song-artist { font-size: 13px; }
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 20px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.icon-btn:active { background: var(--bg-3); }
+
+.primary-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.primary-btn:active { background: var(--accent-2); }
+
+/* ---------- Sıralama çubuğu ---------- */
+.list-sortbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.list-sortbar .lbl { font-size: 12px; color: var(--muted); flex: none; }
+.sortchip {
+  flex: none;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sortchip.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+
+/* ---------- Song list ---------- */
+.song-list { flex: 1; overflow-y: auto; padding: 8px 10px calc(16px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
+/* A-Z modunda sürükleme tutamacı gizlenir */
+.song-list.nodrag .drag { display: none; }
+.song-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 14px;
+  margin-bottom: 9px;
+  cursor: pointer;
+}
+.song-card:active { background: var(--bg-3); }
+.song-num {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  background: var(--bg-3); border-radius: 9px;
+  font-size: 14px; font-weight: 700; color: var(--muted);
+}
+.song-card .info { flex: 1; min-width: 0; }
+.song-card .info .t { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song-card .info .a { font-size: 13px; color: var(--muted); }
+.song-card .badge { font-size: 12px; color: var(--muted); }
+.song-card .drag {
+  color: var(--muted);
+  font-size: 22px;
+  padding: 6px 4px 6px 8px;
+  cursor: grab;
+  touch-action: none;
+  line-height: 0.6;
+  letter-spacing: 1px;
+}
+.song-card.dragging {
+  background: var(--bg-3);
+  border-color: var(--accent);
+  box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+  position: relative;
+  z-index: 20;
+  cursor: grabbing;
+}
+
+/* İndirme ilerleme çubuğu */
+.progress {
+  position: fixed;
+  left: 50%; bottom: calc(20px + var(--safe-bottom));
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  z-index: 55;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  display: flex; align-items: center; gap: 8px;
+}
+.progress .bar { width: 90px; height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.progress .bar > i { display: block; height: 100%; background: var(--ok); width: 0%; transition: width 0.2s; }
+
+.empty { text-align: center; margin: auto; padding: 30px; }
+.empty .big { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+
+/* ---------- Song view ---------- */
+.song-topbar { background: var(--bg-2); }
+.song-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+.ctrl-group { display: flex; align-items: center; gap: 6px; }
+.ctrl-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.round-btn {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  min-width: 38px; height: 38px;
+  border-radius: 10px;
+  font-size: 16px; font-weight: 700;
+  cursor: pointer;
+}
+.round-btn:active { background: var(--accent); border-color: var(--accent); }
+.tr-value { min-width: 46px; text-align: center; font-size: 17px; font-weight: 700; padding: 0 4px; }
+.tr-value.is-key { color: var(--chord); font-size: 18px; }
+.chip {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip:active { background: var(--bg-3); }
+.scroll-chip.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+.viewchip {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 7px 11px;
+  border-radius: 9px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.viewchip.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.timer-pill { font-variant-numeric: tabular-nums; }
+.timer-pill.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+.key-label { font-size: 12px; margin-left: 2px; }
+.speed { width: 92px; accent-color: var(--accent); }
+
+/* Önceki / sonraki gezinme */
+.song-nav {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.nav-btn:disabled { opacity: 0.35; }
+.nav-btn:active:not(:disabled) { background: var(--accent); border-color: var(--accent); }
+.nav-next { justify-content: flex-end; text-align: right; }
+.nav-ar { font-size: 22px; font-weight: 700; flex: none; }
+.nav-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.nav-cap { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.nav-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.song-loading { color: var(--muted); font-size: 15px; padding: 20px 4px; }
+
+/* Şarkı görünümünün tamamı kayar; üst bar sabit kalır, kontroller/gezinme yukarı kayar */
+#view-song {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.song-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px 14px calc(75vh);
+}
+/* ÖNEMLİ: repertuarim.com akorları PROPORTIONAL (Open Sans) fontun karakter
+   genişliklerine göre hizalanmış. Bu yüzden monospace DEĞİL, aynı proportional
+   fontu (RepSans = Open Sans) kullanıyoruz ki akorlar sözlerin doğru hecesine otursun.
+   white-space:pre ile kaynak boşluklar/satırlar aynen korunur. */
+.song-body {
+  margin: 0;
+  display: inline-block;
+  min-width: 100%;
+  font-family: "RepSans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+  white-space: pre;
+  color: var(--text);
+  font-weight: 400;
+  font-variant-ligatures: none;
+  font-kerning: none;
+}
+/* Akor satırı: yalnızca renkle ayrılır — kalın YAPMA (kalın harfler proportional
+   fontta daha geniş olup hizayı bozar). */
+.song-body .chordline { color: var(--chord); font-weight: 400; }
+
+/* ---------- Modal ---------- */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: calc(30px + var(--safe-top)) 12px 12px;
+  z-index: 30;
+}
+.modal-card {
+  width: 100%; max-width: 560px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px;
+  max-height: 85vh;
+  display: flex; flex-direction: column;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 17px; }
+.search-row { display: flex; gap: 8px; }
+.search-row input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 16px;
+}
+.search-row input:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 12px; margin: 8px 2px; }
+
+/* Sekmeler */
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tab {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.pane { display: flex; flex-direction: column; min-height: 0; }
+
+/* Elle ekle */
+.manual-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.manual-row input, .manual-key, #manual-body, #edit-body {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+}
+.manual-key { margin-bottom: 8px; }
+#manual-body, #edit-body {
+  min-height: 200px;
+  resize: vertical;
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  white-space: pre;
+  line-height: 1.4;
+}
+.manual-row input:focus, .manual-key:focus, #manual-body:focus, #edit-body:focus, #edit-artist:focus, #edit-song:focus { outline: none; border-color: var(--accent); }
+.sheet-title { padding: 10px 16px 6px; font-size: 13px; color: var(--muted); }
+.manual-submit { width: 100%; margin-top: 10px; }
+.search-status { font-size: 14px; color: var(--muted); min-height: 20px; padding: 4px 2px; }
+.search-results { overflow-y: auto; margin-top: 4px; }
+
+.result-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.result-item:active { background: var(--bg-3); }
+.result-item .info { flex: 1; min-width: 0; }
+.result-item .t { font-size: 16px; font-weight: 600; }
+.result-item .a { font-size: 13px; color: var(--muted); }
+.result-item .add { color: var(--accent); font-size: 22px; }
+.src {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 4px;
+  vertical-align: 1px;
+  background: var(--bg-3);
+  color: var(--muted);
+}
+.src-repertuarim { background: rgba(76,141,255,0.18); color: #9dc0ff; }
+.src-akorculuk { background: rgba(53,208,127,0.18); color: #7ee6ac; }
+.spinner {
+  width: 16px; height: 16px; border: 2px solid var(--line);
+  border-top-color: var(--accent); border-radius: 50%;
+  display: inline-block; vertical-align: -3px; margin-right: 6px;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Setlist list ---------- */
+.setlist-items { overflow-y: auto; margin-bottom: 12px; }
+.setlist-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.setlist-item.active { background: var(--bg-3); border-radius: 10px; }
+.setlist-item .name { flex: 1; font-size: 16px; cursor: pointer; }
+.setlist-item .cnt { font-size: 12px; color: var(--muted); }
+.setlist-item .mini {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 16px; cursor: pointer; padding: 6px;
+}
+.setlist-item .mini.danger { color: var(--danger); }
+
+/* Eşitleme kutusu */
+.sync-box {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.sync-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.sync-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 10px; }
+#sync-status { font-size: 12px; }
+.backup-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.app-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+/* ---------- Bottom sheet ---------- */
+.sheet {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: flex-end;
+  z-index: 40;
+}
+.sheet-card {
+  width: 100%;
+  background: var(--bg-2);
+  border-top-left-radius: 20px; border-top-right-radius: 20px;
+  padding: 10px 10px calc(14px + var(--safe-bottom));
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sheet-btn {
+  background: var(--bg-3);
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 16px 16px;
+  font-size: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+}
+.sheet-btn:active { background: var(--line); }
+.sheet-btn.danger { color: var(--danger); }
+.sheet-btn.cancel { text-align: center; color: var(--muted); background: transparent; margin-top: 4px; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%; bottom: calc(24px + var(--safe-bottom));
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  z-index: 60;
+  max-width: 90%;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+@media (min-width: 700px) {
+  .song-body { font-size: 20px; }
+}
