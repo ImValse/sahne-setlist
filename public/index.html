@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=7" />
-  <link rel="stylesheet" href="/style.css?v=7" />
+  <link rel="stylesheet" href="/fonts.css?v=8" />
+  <link rel="stylesheet" href="/style.css?v=8" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -31,6 +31,10 @@
       <button class="sortchip active" data-sort="manual">↕ Kendi sıram</button>
       <button class="sortchip" data-sort="artist">Sanatçı A-Z</button>
       <button class="sortchip" data-sort="song">Şarkı A-Z</button>
+    </div>
+
+    <div class="list-filter">
+      <input id="song-filter" type="search" placeholder="🔎 Bu sette şarkı bul…" autocomplete="off" />
     </div>
 
     <div id="song-list" class="song-list"></div>
@@ -80,6 +84,11 @@
       <div class="ctrl-group">
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
       </div>
+      <div class="ctrl-group">
+        <button id="stage-mode" class="chip">🎬 Sahne</button>
+        <button id="metro-toggle" class="chip">🥁 Metronom</button>
+        <button id="hp-toggle" class="chip">🎧 Kulaklık</button>
+      </div>
     </div>
 
     <div id="song-nav" class="song-nav">
@@ -98,6 +107,9 @@
       <pre id="song-body" class="song-body"></pre>
     </div>
   </div>
+
+  <div id="metro-flash" class="metro-flash"></div>
+  <button id="stage-exit" class="stage-exit hidden">✕ Sahne modundan çık</button>
 
   <div id="progress" class="progress hidden"></div>
 
@@ -191,7 +203,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v7</b></span>
+        <span class="muted">Sürüm <b id="app-version">v8</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -228,6 +240,10 @@
           <input id="edit-key" type="text" class="manual-key" placeholder="Orijinal ton (ör. Am)" />
           <input id="edit-duration" type="text" class="manual-key" placeholder="Süre (ör. 3:45)" />
         </div>
+        <div class="manual-row">
+          <input id="edit-bpm" type="number" inputmode="numeric" class="manual-key" placeholder="Tempo BPM (ör. 120)" />
+          <button type="button" id="edit-tap" class="chip tap-btn">🥁 Tempoya vur</button>
+        </div>
         <textarea id="edit-body" spellcheck="false"></textarea>
         <button type="submit" class="primary-btn manual-submit">Kaydet</button>
       </form>
@@ -243,8 +259,18 @@
     </div>
   </div>
 
+  <!-- ================= ETİKET & RENK & SEGUE ================= -->
+  <div id="sheet-label" class="sheet hidden">
+    <div class="sheet-card">
+      <div id="label-song-name" class="sheet-title">Etiket & renk</div>
+      <div id="color-swatches" class="swatches"></div>
+      <button id="label-segue" class="sheet-btn">🔗 Sonraki şarkıya bağla (segue/medley)</button>
+      <button id="label-cancel" class="sheet-btn cancel">Kapat</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=8"></script>
 </body>
 </html>

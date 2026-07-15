@@ -107,10 +107,65 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 }
 .sortchip.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 
+/* Sette hızlı arama */
+.list-filter { padding: 8px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.list-filter input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 15px;
+}
+.list-filter input:focus { outline: none; border-color: var(--accent); }
+
 /* ---------- Song list ---------- */
 .song-list { flex: 1; overflow-y: auto; padding: 8px 10px calc(16px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
 /* A-Z modunda sürükleme tutamacı gizlenir */
 .song-list.nodrag .drag { display: none; }
+/* Etiket rengi: kartın sol kenarında şerit */
+.song-card { position: relative; overflow: hidden; }
+.song-card .color-bar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+}
+.song-card .tag-btn {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 17px; padding: 4px 6px; cursor: pointer;
+}
+.song-card .segue-mark { color: var(--accent); font-size: 15px; padding: 0 2px; }
+
+/* Etiket menüsü renk örnekleri */
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 16px 14px; }
+.swatch {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 2px solid var(--line); cursor: pointer;
+  display: grid; place-items: center; font-size: 12px; color: #fff;
+}
+.swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.tap-btn { white-space: nowrap; }
+
+/* Metronom görsel flaş */
+.metro-flash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 45;
+  background: var(--accent); opacity: 0;
+  transition: opacity 0.05s ease-out;
+}
+.metro-flash.on { opacity: 0.28; transition: none; }
+.metro-toggle-note { }
+.chip.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+
+/* Sahne modu: sade tam ekran */
+body.stage #song-controls,
+body.stage #song-nav,
+body.stage .song-topbar { display: none !important; }
+body.stage .song-scroll { padding-top: calc(18px + var(--safe-top)); }
+.stage-exit {
+  position: fixed; top: calc(8px + var(--safe-top)); right: 10px; z-index: 50;
+  background: rgba(28,34,48,0.85); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 12px; font-size: 13px; cursor: pointer;
+}
 .song-card {
   display: flex;
   align-items: center;
