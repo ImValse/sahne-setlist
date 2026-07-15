@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=10" />
-  <link rel="stylesheet" href="/style.css?v=10" />
+  <link rel="stylesheet" href="/fonts.css?v=11" />
+  <link rel="stylesheet" href="/style.css?v=11" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -36,6 +36,8 @@
     <div class="list-filter">
       <input id="song-filter" type="search" placeholder="🔎 Bu sette şarkı bul…" autocomplete="off" />
     </div>
+
+    <div id="filter-bar" class="filter-bar"></div>
 
     <div id="song-list" class="song-list"></div>
 
@@ -87,7 +89,6 @@
       <div class="ctrl-group">
         <button id="stage-mode" class="chip">🎬 Sahne</button>
         <button id="metro-toggle" class="chip">🥁 Metronom</button>
-        <button id="hp-toggle" class="chip">🎧 Kulaklık</button>
       </div>
     </div>
 
@@ -109,7 +110,15 @@
   </div>
 
   <div id="metro-flash" class="metro-flash"></div>
-  <button id="stage-exit" class="stage-exit hidden">✕ Sahne modundan çık</button>
+  <button id="stage-exit" class="stage-exit hidden">✕ Çık</button>
+  <div id="stage-ctrls" class="stage-ctrls">
+    <button id="stage-font-down" class="stage-c">A−</button>
+    <button id="stage-font-up" class="stage-c">A＋</button>
+    <span class="stage-c-div"></span>
+    <button id="stage-tr-down" class="stage-c">Ton −</button>
+    <span id="stage-key" class="stage-key">0</span>
+    <button id="stage-tr-up" class="stage-c">＋</button>
+  </div>
   <div id="stage-nav" class="stage-nav">
     <button id="stage-prev" class="stage-nav-btn">‹ Önceki</button>
     <button id="stage-next" class="stage-nav-btn">Sonraki ›</button>
@@ -207,7 +216,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v10</b></span>
+        <span class="muted">Sürüm <b id="app-version">v11</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -275,6 +284,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

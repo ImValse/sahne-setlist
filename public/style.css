@@ -120,10 +120,35 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 }
 .list-filter input:focus { outline: none; border-color: var(--accent); }
 
+/* Tür / çalınan filtresi çubuğu */
+.filter-bar {
+  display: flex; gap: 6px; flex-wrap: nowrap;
+  padding: 8px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  background: var(--bg-2); border-bottom: 1px solid var(--line);
+}
+.filter-bar.hidden { display: none; }
+.filt {
+  flex: none;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--muted);
+  padding: 6px 12px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.filt.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.filt.clear { color: var(--muted); }
+
 /* ---------- Song list ---------- */
 .song-list { flex: 1; overflow-y: auto; padding: 8px 10px calc(16px + var(--safe-bottom)); -webkit-overflow-scrolling: touch; }
 /* A-Z modunda sürükleme tutamacı gizlenir */
 .song-list.nodrag .drag { display: none; }
+/* Çalındı işareti (yeşil tik) */
+.song-card .tick {
+  width: 26px; height: 26px; flex: none;
+  border-radius: 50%; border: 2px solid var(--line);
+  background: transparent; color: var(--ok);
+  font-size: 16px; font-weight: 800; cursor: pointer;
+  display: grid; place-items: center; padding: 0;
+}
+.song-card.played .tick { background: var(--ok); border-color: var(--ok); color: #04240f; }
+.song-card.played .info .t { opacity: 0.7; }
 /* Tür etiketi: tüm kart o renge boyanır (arka plan + kenarlık inline gelir) */
 .song-card { position: relative; }
 .song-card.tinted .song-num { background: rgba(0,0,0,0.28); color: var(--text); }
@@ -165,6 +190,23 @@ body.stage .song-scroll { padding-top: calc(18px + var(--safe-top)); }
   border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 12px; font-size: 13px; cursor: pointer;
 }
+/* Sahne modunda üstteki punto + ton kontrolleri */
+.stage-ctrls { display: none; }
+body.stage .stage-ctrls {
+  display: flex; align-items: center; gap: 6px;
+  position: fixed; top: calc(6px + var(--safe-top)); left: 10px; z-index: 50;
+  background: rgba(28,34,48,0.85); border: 1px solid var(--line);
+  border-radius: 12px; padding: 5px 7px;
+}
+.stage-c {
+  background: var(--bg-3); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+  white-space: nowrap;
+}
+.stage-c:active { background: var(--accent); border-color: var(--accent); }
+.stage-c-div { width: 1px; height: 22px; background: var(--line); }
+.stage-key { min-width: 40px; text-align: center; font-size: 15px; font-weight: 700; color: var(--chord); }
+
 /* Sahne modunda alttaki önceki/sonraki çubuğu */
 .stage-nav { display: none; }
 body.stage .stage-nav {
