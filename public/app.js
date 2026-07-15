@@ -150,10 +150,47 @@ function renderBody(body, semi, preferFlat, mode) {
 /* ==========================================================================
  * GORUNUM: SETLIST LISTESI
  * ========================================================================== */
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Sahne sırası üret: türe göre bloklar + blok sırası ve blok içi rastgele.
+// "Kendi sıram" (sl.songs) ana sırasını DEĞİŞTİRMEZ; ayrı sl.stageOrder tutar.
+function generateStageOrder(sl) {
+  const groups = {};
+  const order = [];
+  sl.songs.forEach((s) => {
+    const k = s.color || 'zz-none';
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    groups[k].push(s.id);
+  });
+  shuffle(order);                       // blok (tür) sırasını karıştır
+  const out = [];
+  order.forEach((k) => { shuffle(groups[k]); out.push(...groups[k]); }); // blok içini karıştır
+  sl.stageOrder = out;
+  saveState();
+}
+
 // Setlist'in gosterim sirasi (secili siralama moduna gore)
 function orderedSongs(sl) {
   const mode = sl.sortMode || 'manual';
   if (mode === 'manual') return sl.songs;
+  if (mode === 'stage') {
+    if (!sl.stageOrder || !sl.stageOrder.length) generateStageOrder(sl);
+    const byId = {};
+    sl.songs.forEach((s) => { byId[s.id] = s; });
+    const seen = new Set();
+    const out = [];
+    (sl.stageOrder || []).forEach((id) => {
+      if (byId[id] && !seen.has(id)) { out.push(byId[id]); seen.add(id); }
+    });
+    sl.songs.forEach((s) => { if (!seen.has(s.id)) out.push(s); }); // yeni eklenenler sona
+    return out;
+  }
   const arr = [...sl.songs];
   const keyFn = mode === 'artist'
     ? (s) => (s.artist || 'zzz') + ' — ' + (s.song || s.title || '')
@@ -213,12 +250,13 @@ let filterPlayed = '';       // '' | 'played' | 'unplayed'
 // Filtre çubuğunu (tür + çalınan/çalınmayan) çizer
 function renderFilters() {
   const sl = currentSetlist();
+  const mode = sl.sortMode || 'manual';
   const bar = $('filter-bar');
   bar.innerHTML = '';
   const anyPlayed = sl.songs.some((s) => s.played);
   // sette bulunan türler
   const genres = [...new Set(sl.songs.map((s) => s.color).filter(Boolean))];
-  if (genres.length === 0 && !anyPlayed) { bar.classList.add('hidden'); return; }
+  if (genres.length === 0 && !anyPlayed && mode !== 'stage') { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
 
   const chip = (label, active, onClick, css) => {
@@ -229,6 +267,15 @@ function renderFilters() {
     b.addEventListener('click', onClick);
     bar.appendChild(b);
   };
+
+  // Sahne sırası modunda "yeniden karıştır" düğmesi
+  if (mode === 'stage') {
+    const sh = document.createElement('button');
+    sh.className = 'filt shuffle';
+    sh.textContent = '🎲 Sahne sırasını karıştır';
+    sh.addEventListener('click', () => { generateStageOrder(sl); renderList(); });
+    bar.appendChild(sh);
+  }
 
   chip('Tümü', !filterGenre && !filterPlayed, () => { filterGenre = ''; filterPlayed = ''; renderList(); });
   if (anyPlayed) {
@@ -266,8 +313,9 @@ function renderList() {
   document.querySelectorAll('.sortchip').forEach((c) =>
     c.classList.toggle('active', c.dataset.sort === mode));
 
+  const draggable = (mode === 'manual' || mode === 'stage');
   const list = $('song-list');
-  list.className = 'song-list' + (mode === 'manual' ? '' : ' nodrag');
+  list.className = 'song-list' + (draggable ? '' : ' nodrag');
   list.innerHTML = '';
   $('empty-list').classList.toggle('hidden', sl.songs.length > 0);
 
@@ -311,7 +359,7 @@ function renderList() {
       if (ev.target.closest('[data-tag]')) { openLabel(song.id); return; }
       if (!card._dragged) openSong(song.id);
     });
-    if (mode === 'manual') attachDrag(card, card.querySelector('[data-handle]'));
+    if (draggable) attachDrag(card, card.querySelector('[data-handle]'));
     list.appendChild(card);
   });
   $('empty-list').classList.toggle('hidden', shown > 0);
@@ -450,9 +498,24 @@ function autoScrollEdge(list, y) {
 function stopAutoScroll() { if (edgeTimer) { clearInterval(edgeTimer); edgeTimer = null; } }
 
 function commitOrder() {
-  const ids = [...$('song-list').querySelectorAll('.song-card')].map((c) => c.dataset.id);
   const sl = currentSetlist();
-  sl.songs.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  const mode = sl.sortMode || 'manual';
+  // Görünen (belki filtreli) kartların yeni sırası
+  const newVisible = [...$('song-list').querySelectorAll('.song-card')].map((c) => c.dataset.id);
+  // Bu moddaki tam (filtresiz) sıra
+  const oldFull = orderedSongs(sl).map((s) => s.id);
+  const visibleSet = new Set(newVisible);
+  let vi = 0;
+  // Tam sırada, görünen slotlara yeni görünen sırayı yerleştir; gizli olanlar yerinde kalır
+  const newFull = oldFull.map((id) => (visibleSet.has(id) ? newVisible[vi++] : id));
+
+  if (mode === 'stage') {
+    sl.stageOrder = newFull;               // sadece sahne sırasını değiştir
+  } else {
+    // manual: ana sırayı yeni tam sıraya göre diz
+    const pos = {}; newFull.forEach((id, i) => { pos[id] = i; });
+    sl.songs.sort((a, b) => (pos[a.id] ?? 0) - (pos[b.id] ?? 0));
+  }
   saveState();
   renderList();
 }
