@@ -150,27 +150,23 @@ function renderBody(body, semi, preferFlat, mode) {
 /* ==========================================================================
  * GORUNUM: SETLIST LISTESI
  * ========================================================================== */
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+const NONE_KEY = 'zz-none';
+// Varsayılan tür sırası: COLORS sırası + etiketsizler sona
+function defaultGenreOrder() {
+  return COLORS.map((c) => c.key).concat(NONE_KEY);
 }
-
-// Sahne sırası üret: türe göre bloklar + blok sırası ve blok içi rastgele.
-// "Kendi sıram" (sl.songs) ana sırasını DEĞİŞTİRMEZ; ayrı sl.stageOrder tutar.
+// Sahne sırası üret: türleri sl.genreOrder sırasıyla grupla; her tür içinde
+// şarkılar "Kendi sıram" (sl.songs) sırasında. Ana sırayı DEĞİŞTİRMEZ (sl.stageOrder ayrı).
 function generateStageOrder(sl) {
-  const groups = {};
-  const order = [];
-  sl.songs.forEach((s) => {
-    const k = s.color || 'zz-none';
-    if (!groups[k]) { groups[k] = []; order.push(k); }
-    groups[k].push(s.id);
-  });
-  shuffle(order);                       // blok (tür) sırasını karıştır
+  if (!sl.genreOrder || !sl.genreOrder.length) sl.genreOrder = defaultGenreOrder();
   const out = [];
-  order.forEach((k) => { shuffle(groups[k]); out.push(...groups[k]); }); // blok içini karıştır
+  const used = new Set();
+  sl.genreOrder.forEach((k) => {
+    sl.songs.forEach((s) => {
+      if ((s.color || NONE_KEY) === k && !used.has(s.id)) { out.push(s.id); used.add(s.id); }
+    });
+  });
+  sl.songs.forEach((s) => { if (!used.has(s.id)) out.push(s.id); }); // güvenlik
   sl.stageOrder = out;
   saveState();
 }
@@ -268,12 +264,12 @@ function renderFilters() {
     bar.appendChild(b);
   };
 
-  // Sahne sırası modunda "yeniden karıştır" düğmesi
+  // Sahne sırası modunda "tür sırasını düzenle" düğmesi
   if (mode === 'stage') {
     const sh = document.createElement('button');
     sh.className = 'filt shuffle';
-    sh.textContent = '🎲 Sahne sırasını karıştır';
-    sh.addEventListener('click', () => { generateStageOrder(sl); renderList(); });
+    sh.textContent = '🎭 Tür sırası';
+    sh.addEventListener('click', openGenreOrder);
     bar.appendChild(sh);
   }
 
@@ -363,6 +359,54 @@ function renderList() {
     list.appendChild(card);
   });
   $('empty-list').classList.toggle('hidden', shown > 0);
+}
+
+/* ---------- Tür sırası düzenleyici (sahne sırası) ---------- */
+function openGenreOrder() {
+  const sl = currentSetlist();
+  if (!sl.genreOrder || !sl.genreOrder.length) sl.genreOrder = defaultGenreOrder();
+  renderGenreOrder();
+  $('sheet-genre').classList.remove('hidden');
+}
+function closeGenreOrder() { $('sheet-genre').classList.add('hidden'); }
+function renderGenreOrder() {
+  const sl = currentSetlist();
+  const box = $('genre-order-list');
+  box.innerHTML = '';
+  // yalnızca sette bulunan türleri göster (sıralı)
+  const present = new Set(sl.songs.map((s) => s.color || NONE_KEY));
+  const visible = sl.genreOrder.filter((k) => present.has(k));
+  visible.forEach((k, idx) => {
+    const count = sl.songs.filter((s) => (s.color || NONE_KEY) === k).length;
+    const row = document.createElement('div');
+    row.className = 'genre-row';
+    const dot = k === NONE_KEY ? '#3a3a3a' : colorCss(k);
+    const name = k === NONE_KEY ? 'Etiketsiz' : colorName(k);
+    row.innerHTML =
+      `<span class="genre-dot" style="background:${dot}"></span>
+       <span class="genre-name">${idx + 1}. ${escapeHtml(name)}</span>
+       <span class="muted">${count}</span>
+       <button class="gorder-btn" data-up ${idx === 0 ? 'disabled' : ''}>↑</button>
+       <button class="gorder-btn" data-down ${idx === visible.length - 1 ? 'disabled' : ''}>↓</button>`;
+    row.querySelector('[data-up]').addEventListener('click', () => moveGenre(k, -1));
+    row.querySelector('[data-down]').addEventListener('click', () => moveGenre(k, 1));
+    box.appendChild(row);
+  });
+}
+function moveGenre(key, dir) {
+  const sl = currentSetlist();
+  const present = new Set(sl.songs.map((s) => s.color || NONE_KEY));
+  const visible = sl.genreOrder.filter((k) => present.has(k));
+  const i = visible.indexOf(key);
+  const j = i + dir;
+  if (j < 0 || j >= visible.length) return;
+  [visible[i], visible[j]] = [visible[j], visible[i]];
+  // görünür olmayanları sona ekleyerek tam sırayı yeniden kur
+  const rest = sl.genreOrder.filter((k) => !present.has(k));
+  sl.genreOrder = visible.concat(rest);
+  generateStageOrder(sl);   // yeni tür sırasına göre yeniden grupla
+  renderGenreOrder();
+  renderList();
 }
 
 function togglePlayed(songId) {
@@ -1529,13 +1573,14 @@ $('edit-tap').addEventListener('click', tapTempo);
 // Etiket menüsü
 $('label-segue').addEventListener('click', toggleSegue);
 $('label-cancel').addEventListener('click', closeLabel);
+$('genre-order-close').addEventListener('click', closeGenreOrder);
 
 // Sette hızlı arama
 $('song-filter').addEventListener('input', (e) => { filterText = e.target.value; renderList(); });
 
 // Modal arkaplanina tiklayinca kapat
 [['modal-search', closeSearch], ['modal-setlists', closeSetlists], ['sheet-song', closeSongSheet],
- ['modal-edit', closeEdit], ['sheet-copy', closeCopy], ['sheet-label', closeLabel]]
+ ['modal-edit', closeEdit], ['sheet-copy', closeCopy], ['sheet-label', closeLabel], ['sheet-genre', closeGenreOrder]]
   .forEach(([id, fn]) => {
     $(id).addEventListener('click', (e) => { if (e.target.id === id) fn(); });
   });

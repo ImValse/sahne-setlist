@@ -480,6 +480,16 @@ body.stage .stage-nav {
 }
 .manual-row input:focus, .manual-key:focus, #manual-body:focus, #edit-body:focus, #edit-artist:focus, #edit-song:focus { outline: none; border-color: var(--accent); }
 .sheet-title { padding: 10px 16px 6px; font-size: 13px; color: var(--muted); }
+.genre-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.genre-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; }
+.genre-name { flex: 1; font-size: 16px; }
+.gorder-btn {
+  width: 40px; height: 40px; flex: none;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text);
+  border-radius: 10px; font-size: 18px; font-weight: 700; cursor: pointer;
+}
+.gorder-btn:disabled { opacity: 0.3; }
+.gorder-btn:active:not(:disabled) { background: var(--accent); border-color: var(--accent); }
 .manual-submit { width: 100%; margin-top: 10px; }
 .search-status { font-size: 14px; color: var(--muted); min-height: 20px; padding: 4px 2px; }
 .search-results { overflow-y: auto; margin-top: 4px; }
