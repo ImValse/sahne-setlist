@@ -473,23 +473,31 @@ app.get('/api/websearch', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'En az 2 harf girin.' });
   if (req.query.debug === '1') {
-    const enc = encodeURIComponent(q + ' akor');
+    const eq = encodeURIComponent(q);
+    const cands = [
+      'https://akorculuk.com/arama/' + eq,
+      'https://akorculuk.com/?s=' + eq,
+      'https://www.akordum.com/arama/' + eq,
+      'https://www.akordum.com/?s=' + eq,
+      'https://kolayakor.com/?s=' + eq,
+      'https://e-akor.com/?s=' + eq,
+      'https://e-akor.com/arama/' + eq,
+      'https://www.akordefterim.com/ara?q=' + eq,
+      'https://akorsepeti.com/ara?q=' + eq,
+      'https://api.akorsepeti.com/search?q=' + eq,
+      'https://api.akorsepeti.com/akor/search?q=' + eq,
+    ];
     const out = {};
-    // 1) Bing gerçekte ne döndürüyor (ilk 10 host, filtresiz)
-    try {
-      const r = await fetch('https://www.bing.com/search?q=' + enc + '&mkt=tr-TR&setlang=tr', { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9', Accept: 'text/html,*/*' }, redirect: 'follow' });
-      const html = await r.text();
-      const hosts = [];
-      const re = /<h2[^>]*>\s*<a[^>]+href="([^"]+)"/gi; let m;
-      while ((m = re.exec(html)) && hosts.length < 10) { const u = bingRealUrl(m[1]); try { hosts.push(new URL(u).hostname); } catch (_) {} }
-      out.bingTop = { status: r.status, hasAkorWord: /akor/i.test(html), hosts };
-    } catch (e) { out.bingTop = { err: e.message }; }
-    // 2) Türk akor siteleri Render'dan doğrudan erişilebiliyor mu?
-    const sites = ['https://akorculuk.com/', 'https://akorsepeti.com/', 'https://www.akordum.com/', 'https://uakor.com/', 'https://kolayakor.com/', 'https://e-akor.com/', 'https://akorlab.com/', 'https://akordefterim.com/'];
-    out.siteReach = {};
-    for (const s of sites) {
-      try { const r = await fetch(s, { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9' }, redirect: 'follow' }); const h = await r.text(); out.siteReach[new URL(s).hostname] = r.status + (/(just a moment|challenge-platform|cf-browser)/i.test(h) ? ' CF' : ''); }
-      catch (e) { out.siteReach[new URL(s).hostname] = 'ERR ' + e.message; }
+    for (const url of cands) {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9', Accept: 'text/html,application/json,*/*' }, redirect: 'follow' });
+        const h = await r.text();
+        const cf = /(just a moment|challenge-platform|cf-browser)/i.test(h);
+        // song-link pattern: /akor/... veya /<artist>/<song>-akor
+        const links = [...h.matchAll(/href="([^"]*(?:\/akor\/|-akor)[^"]*)"[^>]*>([\s\S]{0,60}?)<\/a>/gi)]
+          .map((m) => m[1]).filter((u) => !/\/(ara|arama|search)/.test(u));
+        out[url.replace(/^https?:\/\//, '').slice(0, 45)] = { status: r.status + (cf ? 'CF' : ''), len: h.length, json: /^\s*[[{]/.test(h), links: [...new Set(links)].slice(0, 4) };
+      } catch (e) { out[url.replace(/^https?:\/\//, '').slice(0, 45)] = { err: e.message }; }
     }
     return res.json(out);
   }
