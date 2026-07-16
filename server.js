@@ -473,25 +473,23 @@ app.get('/api/websearch', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'En az 2 harf girin.' });
   if (req.query.debug === '1') {
-    const qq = q + ' akor';
-    const enc = encodeURIComponent(qq);
-    const probes = {
-      'bing-trmkt': 'https://www.bing.com/search?q=' + enc + '&mkt=tr-TR&setlang=tr&cc=TR',
-      'bing-tr-domain': 'https://tr.bing.com/search?q=' + enc + '&setlang=tr',
-      'ddg-lite': 'https://lite.duckduckgo.com/lite/?q=' + enc + '&kl=tr-tr',
-      'yandex': 'https://yandex.com/search/?text=' + enc + '&lr=983',
-      'brave': 'https://search.brave.com/search?q=' + enc,
-      'mojeek': 'https://www.mojeek.com/search?q=' + enc,
-      'searx': 'https://searx.be/search?q=' + enc + '&format=json',
-    };
+    const enc = encodeURIComponent(q + ' akor');
     const out = {};
-    for (const [name, url] of Object.entries(probes)) {
-      try {
-        const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9', Accept: 'text/html,*/*' }, redirect: 'follow' });
-        const html = await r.text();
-        const hosts = [...html.matchAll(/https?:\/\/([a-z0-9.-]*akor[a-z0-9.-]*|[a-z0-9.-]*repertuar[a-z0-9.-]*)/gi)].map((m) => m[1]).slice(0, 6);
-        out[name] = { status: r.status, len: html.length, akorHosts: [...new Set(hosts)] };
-      } catch (e) { out[name] = { err: e.message }; }
+    // 1) Bing gerçekte ne döndürüyor (ilk 10 host, filtresiz)
+    try {
+      const r = await fetch('https://www.bing.com/search?q=' + enc + '&mkt=tr-TR&setlang=tr', { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9', Accept: 'text/html,*/*' }, redirect: 'follow' });
+      const html = await r.text();
+      const hosts = [];
+      const re = /<h2[^>]*>\s*<a[^>]+href="([^"]+)"/gi; let m;
+      while ((m = re.exec(html)) && hosts.length < 10) { const u = bingRealUrl(m[1]); try { hosts.push(new URL(u).hostname); } catch (_) {} }
+      out.bingTop = { status: r.status, hasAkorWord: /akor/i.test(html), hosts };
+    } catch (e) { out.bingTop = { err: e.message }; }
+    // 2) Türk akor siteleri Render'dan doğrudan erişilebiliyor mu?
+    const sites = ['https://akorculuk.com/', 'https://akorsepeti.com/', 'https://www.akordum.com/', 'https://uakor.com/', 'https://kolayakor.com/', 'https://e-akor.com/', 'https://akorlab.com/', 'https://akordefterim.com/'];
+    out.siteReach = {};
+    for (const s of sites) {
+      try { const r = await fetch(s, { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9' }, redirect: 'follow' }); const h = await r.text(); out.siteReach[new URL(s).hostname] = r.status + (/(just a moment|challenge-platform|cf-browser)/i.test(h) ? ' CF' : ''); }
+      catch (e) { out.siteReach[new URL(s).hostname] = 'ERR ' + e.message; }
     }
     return res.json(out);
   }
