@@ -394,6 +394,47 @@ app.get('/api/fetch-url', async (req, res) => {
   }
 });
 
+// Google tarzı web araması: sorguya "akor" ekleyip DuckDuckGo'dan farklı
+// akor sitelerinden sonuç getirir. Her sonuç: {title, url, site, artist, song}.
+function decodeUddg(href) {
+  const m = href.match(/[?&]uddg=([^&]+)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (_) {} }
+  return href.startsWith('//') ? 'https:' + href : href;
+}
+async function webSearchChords(query) {
+  const q = /akor|chord|tab/i.test(query) ? query : query + ' akor';
+  const html = await fetchText('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q));
+  const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const out = [];
+  const seen = new Set();
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const url = decodeUddg(m[1]);
+    if (!/^https?:\/\//i.test(url) || /duckduckgo\.com/i.test(url)) continue;
+    let site = '';
+    try { site = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { continue; }
+    if (seen.has(url)) continue;
+    seen.add(url);
+    const title = stripTags(m[2]);
+    const { artist, song } = splitTitle(title);
+    out.push({ title, url, site, artist, song });
+    if (out.length >= 14) break;
+  }
+  return out;
+}
+
+app.get('/api/websearch', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.status(400).json({ error: 'En az 2 harf girin.' });
+  try {
+    const results = await webSearchChords(q);
+    res.json({ query: q, results });
+  } catch (err) {
+    console.error('websearch error:', err.message);
+    res.status(502).json({ error: 'Web araması yapılamadı: ' + err.message });
+  }
+});
+
 app.get('/api/repertoire', async (req, res) => {
   const url = String(req.query.url || '').trim();
   if (!isAllowedRepertoireUrl(url)) {

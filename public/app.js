@@ -1239,6 +1239,41 @@ function manualAdd(e) {
   toast('“' + songName + '” eklendi');
 }
 
+function addSearchSection(box, label) {
+  const h = document.createElement('div');
+  h.className = 'result-section';
+  h.textContent = label;
+  box.appendChild(h);
+  return h;
+}
+function makeRepItem(r) {
+  const item = document.createElement('div');
+  item.className = 'result-item';
+  item.innerHTML =
+    `<div class="info">
+       <div class="t">${escapeHtml(r.song || r.title)}</div>
+       <div class="a">${escapeHtml(r.artist || '')} <span class="src src-${r.source}">${escapeHtml(r.source || '')}</span></div>
+     </div>
+     <div class="add">＋</div>`;
+  item.addEventListener('click', () => addSongFromUrl(r, item));
+  return item;
+}
+function makeWebItem(r) {
+  const item = document.createElement('div');
+  item.className = 'result-item web';
+  const name = r.song ? escapeHtml((r.artist ? r.artist + ' – ' : '') + r.song) : escapeHtml(r.title);
+  item.innerHTML =
+    `<div class="info">
+       <div class="t">${name}</div>
+       <div class="a"><span class="src src-web">${escapeHtml(r.site)}</span></div>
+     </div>
+     <button class="webopen" title="Sayfayı aç">↗</button>
+     <div class="add">＋</div>`;
+  item.querySelector('.webopen').addEventListener('click', (ev) => { ev.stopPropagation(); window.open(r.url, '_blank', 'noopener'); });
+  item.addEventListener('click', () => addFromWeb(r, item));
+  return item;
+}
+
 async function doSearch(e) {
   e.preventDefault();
   const q = $('search-input').value.trim();
@@ -1247,29 +1282,86 @@ async function doSearch(e) {
   const box = $('search-results');
   box.innerHTML = '';
   status.innerHTML = '<span class="spinner"></span> Aranıyor…';
+
+  // 1) Repertuarım — hızlı ve güvenilir tek-tık ekleme
+  let repCount = 0;
   try {
     const res = await fetch('/api/search?q=' + encodeURIComponent(q));
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Hata');
-    if (!data.results.length) {
-      status.textContent = 'Sonuç bulunamadı. Farklı yazmayı deneyin.';
+    if (res.ok && data.results && data.results.length) {
+      repCount = data.results.length;
+      addSearchSection(box, '⚡ Hızlı ekle');
+      data.results.forEach((r) => box.appendChild(makeRepItem(r)));
+    }
+  } catch (_) { /* web aramasına devam */ }
+
+  // 2) Web — "şarkı adı akor" ile tüm sitelerden (istediğinden ekle)
+  addSearchSection(box, '🌐 Diğer sitelerde ara — istediğinden ekle');
+  const webLoad = document.createElement('div');
+  webLoad.className = 'muted websearch-load';
+  webLoad.innerHTML = '<span class="spinner"></span> Web’de aranıyor…';
+  box.appendChild(webLoad);
+  try {
+    const res = await fetch('/api/websearch?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    webLoad.remove();
+    if (res.ok && data.results && data.results.length) {
+      data.results.forEach((r) => box.appendChild(makeWebItem(r)));
+      status.textContent = (repCount ? repCount + ' hızlı + ' : '') + data.results.length + ' web sonucu';
+    } else {
+      const none = document.createElement('div');
+      none.className = 'muted'; none.style.padding = '6px 2px';
+      none.textContent = 'Web sonucu bulunamadı.';
+      box.appendChild(none);
+      status.textContent = repCount ? repCount + ' sonuç' : 'Sonuç bulunamadı';
+    }
+  } catch (err) {
+    webLoad.textContent = 'Web araması başarısız: ' + err.message;
+    status.textContent = repCount ? repCount + ' sonuç' : 'Arama kısmen başarısız';
+  }
+}
+
+// Web sonucundan ekle: önce otomatik oku; okunamazsa (ör. Cloudflare) sayfayı
+// aç ve "Link/Elle" sekmesini hazırla (kopyala-yapıştır).
+async function addFromWeb(result, itemEl) {
+  const add = itemEl.querySelector('.add');
+  if (add.dataset.busy) return;
+  add.dataset.busy = '1';
+  add.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await fetch('/api/fetch-url?url=' + encodeURIComponent(result.url));
+    const data = await res.json();
+    if (!res.ok) {
+      add.textContent = '↗'; add.style.color = 'var(--accent)'; add.dataset.busy = '';
+      if (result.artist) $('manual-artist').value = result.artist;
+      if (result.song) $('manual-song').value = result.song;
+      $('import-url').value = result.url;
+      switchTab('manual');
+      toast(data.error || 'Otomatik okunamadı. Sayfa açıldı — akoru kopyalayıp yapıştır.');
+      window.open(result.url, '_blank', 'noopener');
       return;
     }
-    status.textContent = data.results.length + ' sonuç';
-    data.results.forEach((r) => {
-      const item = document.createElement('div');
-      item.className = 'result-item';
-      item.innerHTML =
-        `<div class="info">
-           <div class="t">${escapeHtml(r.song || r.title)}</div>
-           <div class="a">${escapeHtml(r.artist || '')} <span class="src src-${r.source}">${escapeHtml(r.source || '')}</span></div>
-         </div>
-         <div class="add">＋</div>`;
-      item.addEventListener('click', () => addSongFromUrl(r, item));
-      box.appendChild(item);
-    });
+    const artist = data.artist || result.artist || '';
+    const song = {
+      id: uid(),
+      title: (artist ? artist + ' - ' : '') + (data.song || result.song || ''),
+      artist,
+      song: data.song || result.song || result.title,
+      key: data.key || '',
+      body: data.body,
+      source: data.source || result.url,
+      transpose: 0,
+      color: guessGenre(artist),
+      addedAt: Date.now(),
+    };
+    currentSetlist().songs.push(song);
+    saveState();
+    renderList();
+    add.textContent = '✓'; add.style.color = 'var(--ok)'; add.dataset.busy = '';
+    toast('“' + song.song + '” eklendi (' + result.site + ')');
   } catch (err) {
-    status.textContent = 'Arama başarısız: ' + err.message;
+    add.textContent = '！'; add.style.color = 'var(--danger)'; add.dataset.busy = '';
+    toast('Eklenemedi: ' + err.message);
   }
 }
 

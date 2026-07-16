@@ -584,6 +584,24 @@ body.stage .stage-nav {
 }
 .src-repertuarim { background: rgba(76,141,255,0.18); color: #9dc0ff; }
 .src-akorculuk { background: rgba(53,208,127,0.18); color: #7ee6ac; }
+.src-web { background: rgba(255,210,74,0.16); color: var(--chord); }
+/* Arama sonuç bölüm başlığı */
+.result-section {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.4px;
+  padding: 12px 2px 4px; margin-top: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.result-section:first-child { padding-top: 2px; }
+.websearch-load { padding: 10px 2px; }
+/* Web sonucu: sayfayı açma düğmesi */
+.webopen {
+  flex: none;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--accent);
+  width: 34px; height: 34px; border-radius: 9px; font-size: 16px; cursor: pointer;
+}
+.webopen:active { background: var(--accent); color: #fff; }
+.result-item.web .add { font-size: 24px; padding: 0 2px; }
 .spinner {
   width: 16px; height: 16px; border: 2px solid var(--line);
   border-top-color: var(--accent); border-radius: 50%;
