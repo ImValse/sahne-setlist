@@ -1612,6 +1612,29 @@ function tapTempoTo(setter) {
 function tapTempo() { tapTempoTo((bpm) => { $('edit-bpm').value = bpm; }); } // düzenleme formu
 function bpmTap() { tapTempoTo((bpm) => setBpm(bpm)); }                       // şarkı içi
 
+// İnternetten otomatik BPM bul (songbpm.com)
+async function findBpmForSong() {
+  if (!currentSong) return;
+  const song = currentSong.song || currentSong.title || '';
+  if (!song) { toast('Şarkı adı yok'); return; }
+  const btn = $('bpm-find');
+  const old = btn.textContent;
+  btn.textContent = '…';
+  btn.disabled = true;
+  try {
+    const url = '/api/bpm?artist=' + encodeURIComponent(currentSong.artist || '') +
+      '&song=' + encodeURIComponent(song);
+    const res = await fetch(url);
+    const d = await res.json();
+    if (d.bpm) { setBpm(d.bpm); toast('BPM bulundu: ' + d.bpm + ' (yanlışsa slider ya da TAP ile ayarla)'); }
+    else { toast('BPM bulunamadı — TAP ile ölçebilirsin'); }
+  } catch (err) {
+    toast('BPM alınamadı: ' + err.message);
+  }
+  btn.textContent = old;
+  btn.disabled = false;
+}
+
 /* ==========================================================================
  * KLAVYE / PEDAL İLE GEZİNME
  * ========================================================================== */
@@ -1834,6 +1857,7 @@ $('rhythm-btn').addEventListener('click', openRhythmSheet);
 $('rhythm-quick').addEventListener('click', playSavedRhythm);
 $('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
 $('bpm-tap').addEventListener('click', bpmTap);
+$('bpm-find').addEventListener('click', findBpmForSong);
 $('edit-tap').addEventListener('click', tapTempo);
 $('rhythm-stop').addEventListener('click', stopRhythm);
 $('rhythm-save-song').addEventListener('click', saveRhythmToSong);

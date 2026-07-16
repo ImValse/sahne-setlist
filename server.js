@@ -378,6 +378,36 @@ app.post('/api/sync/:room', (req, res) => {
   res.json({ rev: syncStore[room].rev });
 });
 
+// Otomatik BPM: songbpm.com'un /@sanatci/sarki sayfasindan tempo cek
+async function findBpm(artist, song) {
+  const a = trSlug(artist);
+  const s = trSlug(song);
+  if (!s) return null;
+  const url = a ? `https://songbpm.com/@${a}/${s}` : null;
+  if (!url) return null;
+  let html;
+  try { html = await fetchText(url, { 'Accept-Language': 'en-US,en;q=0.9' }); }
+  catch (_) { return null; } // 404 vb.
+  const m = html.match(/(\d{2,3})\s*BPM/i);
+  if (!m) return null;
+  const bpm = parseInt(m[1], 10);
+  if (bpm < 40 || bpm > 250) return null;
+  return { bpm, source: url };
+}
+
+app.get('/api/bpm', async (req, res) => {
+  const artist = String(req.query.artist || '').trim();
+  const song = String(req.query.song || '').trim();
+  if (!song) return res.status(400).json({ error: 'Şarkı adı gerekli.' });
+  try {
+    const r = await findBpm(artist, song);
+    res.json(r || { bpm: null });
+  } catch (err) {
+    console.error('bpm error:', err.message);
+    res.status(502).json({ error: 'BPM alınamadı: ' + err.message });
+  }
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));

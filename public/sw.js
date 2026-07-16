@@ -6,13 +6,13 @@
  * önbellekten sunulur -> çevrimdışı yine çalışır.
  * Kayıtlı şarkılar zaten localStorage'da olduğu için çevrimdışı görüntülenir.
  */
-const CACHE = 'setlist-shell-v21';
+const CACHE = 'setlist-shell-v22';
 const SHELL = [
   '/',
   '/index.html',
-  '/fonts.css?v=21',
-  '/style.css?v=21',
-  '/app.js?v=21',
+  '/fonts.css?v=22',
+  '/style.css?v=22',
+  '/app.js?v=22',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
