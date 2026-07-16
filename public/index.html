@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=22" />
-  <link rel="stylesheet" href="/style.css?v=22" />
+  <link rel="stylesheet" href="/fonts.css?v=23" />
+  <link rel="stylesheet" href="/style.css?v=23" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -95,6 +95,8 @@
         <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM</button>
         <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
         <span id="bpm-val" class="tr-value">100</span>
+        <button id="bpm-slow" class="chip" title="Basılı tut: kademeli yavaşlat">🐢 Yavaşlat</button>
+        <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
       </div>
       <div class="ctrl-group">
         <button id="stage-mode" class="chip">🎬 Sahne</button>
@@ -236,7 +238,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v22</b></span>
+        <span class="muted">Sürüm <b id="app-version">v23</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -297,7 +299,10 @@
     <div class="sheet-card">
       <div class="sheet-head-row">
         <div class="sheet-title">🥁 Davul Ritmi (tempo: <span id="rhythm-bpm">—</span> BPM)</div>
-        <button id="rhythm-stop" class="chip">⏹ Durdur</button>
+        <div style="display:flex;gap:6px">
+          <button id="rhythm-final-2" class="chip">🎬 Final</button>
+          <button id="rhythm-stop" class="chip">⏹ Durdur</button>
+        </div>
       </div>
       <div id="rhythm-list" class="rhythm-list"></div>
       <button id="rhythm-save-song" class="sheet-btn">💾 Çalan ritmi bu şarkıya kaydet</button>
@@ -341,6 +346,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=22"></script>
+  <script src="/app.js?v=23"></script>
 </body>
 </html>

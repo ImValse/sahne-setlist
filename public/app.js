@@ -1314,11 +1314,19 @@ function toggleStage() {
  * ========================================================================== */
 let audioCtx = null;
 let noiseBuffer = null;
+let crashBuffer = null;
+let liveBpm = null;            // geçici tempo (yavaşlatma); null ise song.bpm kullanılır
 let rhythmPlaying = false;
 let rhythmTimer = null;
 let rhythmNextTime = 0;
 let rhythmStep = 0;
 let activePattern = null;
+
+// O an geçerli tempo (yavaşlatma varsa onu, yoksa şarkının BPM'i)
+function effectiveBpm() {
+  if (liveBpm != null) return liveBpm;
+  return (currentSong && currentSong.bpm) || parseInt($('bpm-slider').value, 10) || 100;
+}
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -1388,6 +1396,41 @@ function playHat(t) {
   noise.connect(hp); hp.connect(g); g.connect(ctx.destination);
   noise.start(t); noise.stop(t + 0.06);
 }
+// Crash zili: uzun sönümlü parlak gürültü ("tsss")
+function getCrashBuffer() {
+  if (!crashBuffer) {
+    const len = Math.floor(audioCtx.sampleRate * 1.4);
+    crashBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = crashBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return crashBuffer;
+}
+function playCrash(t, vol) {
+  vol = vol == null ? 1 : vol;
+  const ctx = audioCtx;
+  const src = ctx.createBufferSource();
+  src.buffer = getCrashBuffer();
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 3500;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.5 * vol, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 1.3);   // uzun sönüm
+  src.connect(hp); hp.connect(g); g.connect(ctx.destination);
+  src.start(t); src.stop(t + 1.4);
+}
+// Bitiş fill'i: kısa snare roll (crescendo) + son kick + uzun crash (ba-dum-tsss)
+function playEndingFill() {
+  if (!ensureAudio()) return;
+  const bpm = effectiveBpm();
+  const six = (60 / bpm) / 4;      // onaltılık
+  let t = audioCtx.currentTime + 0.04;
+  const rolls = 6;
+  for (let i = 0; i < rolls; i++) { playSnare(t, 0.35 + i * (0.55 / rolls)); t += six; }
+  playKick(t);
+  playCrash(t);                    // son "tsss"
+}
 
 // Davul düğmesini vuruşta yak (görsel darbe)
 function flashRhythmBtn(t) {
@@ -1421,7 +1464,7 @@ function allRhythms() { return PRESETS.concat(customRhythms); }
 function getRhythm(id) { return allRhythms().find((r) => r.id === id); }
 
 function rhythmScheduler() {
-  const bpm = currentSong && currentSong.bpm;
+  const bpm = effectiveBpm();
   const p = activePattern;
   if (!bpm || !audioCtx || !p) return;
   const stepDur = (60 / bpm) / 4;   // onaltılık nota (1 ölçü = 4 vuruş = 16 adım)
@@ -1462,10 +1505,36 @@ function stopRhythm() {
   if (rhythmTimer) clearInterval(rhythmTimer);
   rhythmTimer = null;
   activePattern = null;
+  stopSlow();
+  liveBpm = null;
+  updateRhythmBtn();
+  updateQuickBtn();
+  updateBpmUI();
+  if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
+}
+// Davulu bir bitiş fill'iyle (ba-dum-tsss) sonlandır
+function rhythmFinal() {
+  if (!ensureAudio()) return;
+  if (rhythmTimer) clearInterval(rhythmTimer);
+  rhythmTimer = null;
+  playEndingFill();                 // fill + crash o anki tempoda
+  rhythmPlaying = false;
+  activePattern = null;
+  stopSlow();
+  liveBpm = null;
   updateRhythmBtn();
   updateQuickBtn();
   if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
 }
+
+/* ---------- Kademeli yavaşlatma (ritardando) — basılı tut ---------- */
+let slowTimer = null;
+function slowStep() {
+  const b = effectiveBpm();
+  if (b > 40) { liveBpm = Math.max(40, b - 2); updateBpmUI(); }
+}
+function startSlow() { stopSlow(); slowStep(); slowTimer = setInterval(slowStep, 250); }
+function stopSlow() { if (slowTimer) clearInterval(slowTimer); slowTimer = null; }
 function updateRhythmBtn() {
   const b = $('rhythm-btn');
   if (rhythmPlaying && activePattern) { b.textContent = '🥁 ' + activePattern.name + ' ●'; b.classList.add('on'); }
@@ -1585,12 +1654,13 @@ function saveRhythmEdit() {
 
 /* ---------- BPM: şarkı içinde slider + tap ---------- */
 function updateBpmUI() {
-  const bpm = (currentSong && currentSong.bpm) || 100;
+  const bpm = effectiveBpm();
   $('bpm-slider').value = bpm;
   $('bpm-val').textContent = bpm;
 }
 function setBpm(v) {
   v = Math.max(40, Math.min(240, parseInt(v, 10) || 100));
+  liveBpm = null;                     // slider/tap = kalıcı tempo, yavaşlatmayı sıfırla
   if (currentSong) { currentSong.bpm = v; saveState(); }
   $('bpm-slider').value = v;
   $('bpm-val').textContent = v;
@@ -1861,6 +1931,19 @@ $('bpm-find').addEventListener('click', findBpmForSong);
 $('edit-tap').addEventListener('click', tapTempo);
 $('rhythm-stop').addEventListener('click', stopRhythm);
 $('rhythm-save-song').addEventListener('click', saveRhythmToSong);
+$('rhythm-final').addEventListener('click', rhythmFinal);
+$('rhythm-final-2').addEventListener('click', rhythmFinal);
+
+// Yavaşlat: basılı tutunca kademeli yavaşlar, bırakınca durur
+(() => {
+  const b = $('bpm-slow');
+  const down = (e) => { e.preventDefault(); startSlow(); };
+  const up = () => stopSlow();
+  b.addEventListener('pointerdown', down);
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointerleave', up);
+  b.addEventListener('pointercancel', up);
+})();
 $('rhythm-close').addEventListener('click', closeRhythmSheet);
 $('rhythm-new').addEventListener('click', openRhythmEditor);
 $('rhythm-preview').addEventListener('click', previewRhythmEdit);
