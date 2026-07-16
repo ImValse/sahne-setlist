@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=35" />
-  <link rel="stylesheet" href="/style.css?v=35" />
+  <link rel="stylesheet" href="/fonts.css?v=36" />
+  <link rel="stylesheet" href="/style.css?v=36" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -161,7 +161,7 @@
       <div class="tabs">
         <button id="tab-online" class="tab active">🔎 Ara</button>
         <button id="tab-repertoire" class="tab">📚 Repertuar</button>
-        <button id="tab-manual" class="tab">✎ Elle</button>
+        <button id="tab-manual" class="tab">🔗 Link/Elle</button>
       </div>
 
       <!-- İnternetten ara -->
@@ -187,9 +187,14 @@
         <button id="repertoire-import" class="primary-btn manual-submit hidden">Setlist Olarak Ekle</button>
       </div>
 
-      <!-- Elle ekle (herhangi bir siteden yapıştır) -->
+      <!-- Elle ekle (link getir veya herhangi bir siteden yapıştır) -->
       <div id="pane-manual" class="pane hidden">
-        <p class="hint muted">Başka bir siteden (akorlar.com, akorculuk.com…) akor + sözü kopyalayıp buraya yapıştır. Boşlukların bozulmaması için akorların söz üstünde hizalı kaldığından emin ol.</p>
+        <div class="link-import">
+          <input id="import-url" type="url" inputmode="url" placeholder="Akor sayfasının linkini yapıştır…" autocomplete="off" />
+          <button id="import-url-btn" type="button" class="primary-btn">Getir</button>
+        </div>
+        <div id="import-url-status" class="import-status muted"></div>
+        <p class="hint muted">Linki yapıştır → <b>Getir</b>, alanlar otomatik dolsun. Site okumaya kapalıysa (ör. akorlar.com) şarkının akor + sözünü kopyalayıp aşağıya yapıştır. Akorların söz üstünde hizalı kaldığından emin ol.</p>
         <form id="manual-form">
           <div class="manual-row">
             <input id="manual-artist" type="text" placeholder="Sanatçı (ör. Sezen Aksu)" />
@@ -263,7 +268,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v35</b></span>
+        <span class="muted">Sürüm <b id="app-version">v36</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -433,6 +438,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=35"></script>
+  <script src="/app.js?v=36"></script>
 </body>
 </html>

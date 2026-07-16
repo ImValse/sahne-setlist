@@ -339,6 +339,61 @@ app.get('/api/song', async (req, res) => {
   }
 });
 
+// Herhangi bir (herkese açık) akor sitesinden şarkı çek. SSRF'e karşı özel/yerel
+// adresler engellenir. Cloudflare gibi korumalı siteler (akorlar.com) okunamaz;
+// o durumda kullanıcı metni kopyalayıp elle yapıştırır.
+function isPublicHttpUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (_) { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  const host = u.hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) return false;
+  if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    const p = host.split('.').map(Number);
+    if (p[0] === 10 || p[0] === 127 || p[0] === 0) return false;
+    if (p[0] === 169 && p[1] === 254) return false;
+    if (p[0] === 192 && p[1] === 168) return false;
+    if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return false;
+    if (p[0] >= 224) return false;
+  }
+  return true;
+}
+function looksBlocked(html) {
+  return /just a moment|cf-browser-verification|challenge-platform|Attention Required|Enable JavaScript and cookies|Checking your browser/i.test(html);
+}
+
+app.get('/api/fetch-url', async (req, res) => {
+  const url = String(req.query.url || '').trim();
+  if (!isPublicHttpUrl(url)) {
+    return res.status(400).json({ error: 'Geçerli bir http(s) adresi girin.' });
+  }
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'User-Agent': UA,
+        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Referer: 'https://www.google.com/',
+      },
+      redirect: 'follow',
+    });
+    const html = await r.text();
+    if (r.status === 403 || r.status === 503 || looksBlocked(html)) {
+      return res.status(422).json({ error: 'Bu site otomatik okumaya kapalı (koruma var). Şarkının akor+söz kısmını kopyalayıp aşağıya elle yapıştırın.' });
+    }
+    if (!r.ok) return res.status(502).json({ error: 'Sayfa alınamadı (HTTP ' + r.status + '). Metni kopyalayıp elle yapıştırabilirsiniz.' });
+    const parsed = parseSongPage(html, url);
+    if (!parsed.body || parsed.body.replace(/\s/g, '').length < 20) {
+      return res.status(422).json({ error: 'Bu sayfada akor/söz bloğu otomatik bulunamadı. Metni kopyalayıp elle yapıştırın.' });
+    }
+    res.json(parsed);
+  } catch (err) {
+    console.error('fetch-url error:', err.message);
+    res.status(502).json({ error: 'Sayfa alınamadı: ' + err.message + '. Metni kopyalayıp elle yapıştırabilirsiniz.' });
+  }
+});
+
 app.get('/api/repertoire', async (req, res) => {
   const url = String(req.query.url || '').trim();
   if (!isAllowedRepertoireUrl(url)) {

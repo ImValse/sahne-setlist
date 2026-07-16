@@ -1179,6 +1179,33 @@ function showProgress(done, total) {
 function hideProgress() { $('progress').classList.add('hidden'); }
 
 // Elle ekleme: herhangi bir siteden yapistirilan akor+sozu kaydeder (internet gerekmez)
+// Bir akor sitesinin linkinden şarkıyı çekip elle-ekleme alanlarını doldur
+async function fetchFromUrl() {
+  const url = $('import-url').value.trim();
+  const st = $('import-url-status');
+  const btn = $('import-url-btn');
+  if (!url) { st.className = 'import-status err'; st.textContent = 'Önce bir akor sayfası linki yapıştır.'; return; }
+  st.className = 'import-status muted';
+  st.innerHTML = '<span class="spinner"></span> Getiriliyor…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/fetch-url?url=' + encodeURIComponent(url));
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Getirilemedi');
+    if (d.artist) $('manual-artist').value = d.artist;
+    if (d.song) $('manual-song').value = d.song;
+    if (d.key) $('manual-key').value = d.key;
+    $('manual-body').value = d.body || '';
+    st.className = 'import-status ok';
+    st.textContent = '✓ Getirildi. Kontrol edip “Setliste Ekle”ye bas.';
+  } catch (err) {
+    st.className = 'import-status err';
+    st.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function manualAdd(e) {
   e.preventDefault();
   const artist = $('manual-artist').value.trim();
@@ -1206,6 +1233,8 @@ function manualAdd(e) {
   $('manual-key').value = '';
   $('manual-color').value = '';
   $('manual-body').value = '';
+  $('import-url').value = '';
+  $('import-url-status').textContent = '';
   closeSearch();
   toast('“' + songName + '” eklendi');
 }
@@ -2518,6 +2547,7 @@ $('tab-online').addEventListener('click', () => switchTab('online'));
 $('tab-repertoire').addEventListener('click', () => switchTab('repertoire'));
 $('tab-manual').addEventListener('click', () => switchTab('manual'));
 $('manual-form').addEventListener('submit', manualAdd);
+$('import-url-btn').addEventListener('click', fetchFromUrl);
 $('repertoire-form').addEventListener('submit', fetchRepertoire);
 $('repertoire-import').addEventListener('click', importRepertoire);
 

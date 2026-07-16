@@ -487,9 +487,10 @@ body.stage .stage-nav {
 .hint { font-size: 12px; margin: 8px 2px; }
 
 /* Sekmeler */
-.tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .tab {
   flex: 1;
+  min-width: 0;
   background: var(--bg);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -502,6 +503,22 @@ body.stage .stage-nav {
 .pane { display: flex; flex-direction: column; min-height: 0; }
 
 /* Elle ekle */
+.link-import { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.link-import input {
+  flex: 1 1 180px; min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+}
+.link-import input:focus { outline: none; border-color: var(--accent); }
+.link-import .primary-btn { flex: none; white-space: nowrap; }
+.import-status { font-size: 13px; margin: 0 2px 8px; min-height: 18px; }
+.import-status.ok { color: var(--ok); }
+.import-status.err { color: var(--danger); }
+
 .manual-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .manual-row input, .manual-key, #manual-body, #edit-body {
   width: 100%;
