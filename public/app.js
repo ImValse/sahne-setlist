@@ -596,7 +596,7 @@ async function openSong(songId) {
     c.classList.toggle('active', c.dataset.view === viewMode));
   startSongTimer();
   requestWakeLock();
-  stopKick();
+  stopRhythm();
   updateBpmUI();
 
   // Tembel yukleme: govde bos ama kaynak varsa internetten cek
@@ -1213,7 +1213,7 @@ function showList() {
   clearTimeout(autoPlayTimer);
   stopScroll();
   stopSongTimer();
-  stopKick();
+  stopRhythm();
   exitStage();
   releaseWakeLock();
   $('view-song').classList.add('hidden');
@@ -1313,11 +1313,12 @@ function toggleStage() {
  * METRONOM — sesli (kick + snare), BPM slider, düğmede görsel darbe
  * ========================================================================== */
 let audioCtx = null;
-let kickOn = false;
-let kickSchedTimer = null;
-let kickNextTime = 0;
-let beatIndex = 0;
 let noiseBuffer = null;
+let rhythmPlaying = false;
+let rhythmTimer = null;
+let rhythmNextTime = 0;
+let rhythmStep = 0;
+let activePattern = null;
 
 function ensureAudio() {
   if (!audioCtx) {
@@ -1354,86 +1355,201 @@ function getNoiseBuffer() {
   }
   return noiseBuffer;
 }
-function playSnare(t) {
+function playSnare(t, vol) {
+  vol = vol == null ? 1 : vol;
   const ctx = audioCtx;
   const noise = ctx.createBufferSource();
   noise.buffer = getNoiseBuffer();
   const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 1400;
+  hp.type = 'highpass'; hp.frequency.value = 1600;
   const ng = ctx.createGain();
-  ng.gain.setValueAtTime(0.7, t);
-  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+  ng.gain.setValueAtTime(0.42 * vol, t);   // snare kısıldı (kick daha net duyulsun)
+  ng.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
   noise.connect(hp); hp.connect(ng); ng.connect(ctx.destination);
   noise.start(t); noise.stop(t + 0.2);
   const osc = ctx.createOscillator();
   osc.type = 'triangle'; osc.frequency.value = 190;
   const og = ctx.createGain();
-  og.gain.setValueAtTime(0.5, t);
-  og.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+  og.gain.setValueAtTime(0.26 * vol, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
   osc.connect(og); og.connect(ctx.destination);
   osc.start(t); osc.stop(t + 0.1);
 }
+// HiHat: kısa yüksek frekanslı gürültü
+function playHat(t) {
+  const ctx = audioCtx;
+  const noise = ctx.createBufferSource();
+  noise.buffer = getNoiseBuffer();
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 7000;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.22, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  noise.connect(hp); hp.connect(g); g.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.06);
+}
 
-// Kick düğmesini her vuruşta yak (görsel darbe, sesle senkron)
-function flashKickBtn(t) {
+// Davul düğmesini vuruşta yak (görsel darbe)
+function flashRhythmBtn(t) {
   const delay = Math.max(0, (t - audioCtx.currentTime) * 1000);
   setTimeout(() => {
-    if (!kickOn) return;
-    const b = $('kick-toggle');
+    if (!rhythmPlaying) return;
+    const b = $('rhythm-btn');
     b.classList.add('beat');
     setTimeout(() => b.classList.remove('beat'), 90);
   }, delay);
 }
 
-// Mod: 0 kapalı · 1 sadece kick · 2 kick+snare (aynı anda) · 3 kick→snare (ayrı, sırayla)
-let kickMode = 0;
-const KICK_LABELS = ['🥁 Metronom', '🥁 Kick', '🥁 Kick+Snare', '🥁 Kick→Snare'];
-function updateKickBtn() {
-  const b = $('kick-toggle');
-  b.textContent = KICK_LABELS[kickMode];
-  b.classList.toggle('on', kickMode !== 0);
-  if (kickMode === 0) b.classList.remove('beat');
-}
-function kickScheduler() {
+/* ---------- Ritim (davul makinesi) — 16 adım: 'x' vuruş, '.' boş ---------- */
+const PRESETS = [
+  { id: 'p1', name: 'Metronom', k: 'x...x...x...x...', s: '................', h: '................' },
+  { id: 'p2', name: 'Rock', k: 'x.......x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+  { id: 'p3', name: 'Pop', k: 'x.......x...x...', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+  { id: 'p4', name: 'Balad (yavaş)', k: 'x.......x.......', s: '....x.......x...', h: 'x...x...x...x...' },
+  { id: 'p5', name: 'Disko', k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.' },
+  { id: 'p6', name: 'Funk', k: 'x.....x...x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' },
+  { id: 'p7', name: 'Reggae', k: '........x.......', s: '....x.......x...', h: '..x...x...x...x.' },
+  { id: 'p8', name: 'Shuffle', k: 'x.......x.......', s: '....x.......x...', h: 'x..x..x..x..x..x' },
+  { id: 'p9', name: 'Hızlı (punk)', k: 'x...x...x...x...', s: '..x...x...x...x.', h: 'x.x.x.x.x.x.x.x.' },
+  { id: 'p10', name: 'Backbeat (el çırpma)', k: '................', s: '....x.......x...', h: '................' },
+  { id: 'p11', name: 'Yürüyüş (marş)', k: 'x...x...x...x...', s: 'x...x...x...x...', h: '................' },
+];
+let customRhythms = [];
+try { customRhythms = JSON.parse(localStorage.getItem('rhythms_custom') || '[]'); } catch (_) { customRhythms = []; }
+function saveCustomRhythms() { localStorage.setItem('rhythms_custom', JSON.stringify(customRhythms)); }
+function allRhythms() { return PRESETS.concat(customRhythms); }
+function getRhythm(id) { return allRhythms().find((r) => r.id === id); }
+
+function rhythmScheduler() {
   const bpm = currentSong && currentSong.bpm;
-  if (!bpm || !audioCtx) return;
-  const spb = 60 / bpm;
-  while (kickNextTime < audioCtx.currentTime + 0.12) {
-    const t = kickNextTime;
-    if (kickMode === 1) {
-      playKick(t);                                   // sadece kick
-    } else if (kickMode === 2) {
-      playKick(t); playSnare(t);                     // kick + snare aynı anda
-    } else if (kickMode === 3) {
-      if (beatIndex % 2 === 0) playKick(t); else playSnare(t); // önce kick, peşine snare (ayrı)
-    }
-    flashKickBtn(t);
-    beatIndex = (beatIndex + 1) % 4;
-    kickNextTime += spb;
+  const p = activePattern;
+  if (!bpm || !audioCtx || !p) return;
+  const stepDur = (60 / bpm) / 4;   // onaltılık nota (1 ölçü = 4 vuruş = 16 adım)
+  while (rhythmNextTime < audioCtx.currentTime + 0.14) {
+    const i = rhythmStep;
+    const t = rhythmNextTime;
+    const hasK = p.k[i] === 'x', hasS = p.s[i] === 'x', hasH = p.h[i] === 'x';
+    if (hasK) playKick(t);
+    if (hasS) playSnare(t, hasK ? 0.55 : 1);   // kick ile aynı anda ise snare'i daha çok kıs
+    if (hasH) playHat(t);
+    if (i % 4 === 0) flashRhythmBtn(t);
+    rhythmStep = (rhythmStep + 1) % 16;
+    rhythmNextTime += stepDur;
   }
 }
-// Kick düğmesine her tıklamada modu ilerlet: off -> 1 -> 2 -> 3 -> off
-function cycleKick() {
+function playPattern(pat) {
   if (currentSong && !currentSong.bpm) setBpm($('bpm-slider').value);
-  if (!(currentSong && currentSong.bpm)) return;
-  const next = (kickMode + 1) % 4;
-  if (next === 0) { stopKick(); return; }
-  if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return; }
-  kickMode = next;
-  kickOn = true;
-  beatIndex = 0;
-  if (kickSchedTimer) clearInterval(kickSchedTimer);
-  kickNextTime = audioCtx.currentTime + 0.08;
-  kickScheduler();
-  kickSchedTimer = setInterval(kickScheduler, 25);
-  updateKickBtn();
+  if (!(currentSong && currentSong.bpm)) return false;
+  if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return false; }
+  activePattern = pat;
+  rhythmPlaying = true;
+  rhythmStep = 0;
+  if (rhythmTimer) clearInterval(rhythmTimer);
+  rhythmNextTime = audioCtx.currentTime + 0.08;
+  rhythmScheduler();
+  rhythmTimer = setInterval(rhythmScheduler, 25);
+  return true;
 }
-function stopKick() {
-  kickOn = false;
-  kickMode = 0;
-  if (kickSchedTimer) clearInterval(kickSchedTimer);
-  kickSchedTimer = null;
-  updateKickBtn();
+function playRhythmById(id) {
+  const pat = getRhythm(id);
+  if (!pat || !playPattern(pat)) return;
+  if (currentSong) { currentSong.rhythm = id; saveState(); }
+  updateRhythmBtn();
+  renderRhythmList();
+}
+function stopRhythm() {
+  rhythmPlaying = false;
+  if (rhythmTimer) clearInterval(rhythmTimer);
+  rhythmTimer = null;
+  activePattern = null;
+  updateRhythmBtn();
+  if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
+}
+function updateRhythmBtn() {
+  const b = $('rhythm-btn');
+  if (rhythmPlaying && activePattern) { b.textContent = '🥁 ' + activePattern.name + ' ●'; b.classList.add('on'); }
+  else { b.textContent = '🥁 Davul'; b.classList.remove('on', 'beat'); }
+}
+
+/* ---------- Ritim menüsü ---------- */
+function openRhythmSheet() {
+  $('rhythm-bpm').textContent = (currentSong && currentSong.bpm) || $('bpm-slider').value;
+  renderRhythmList();
+  $('sheet-rhythm').classList.remove('hidden');
+}
+function closeRhythmSheet() { $('sheet-rhythm').classList.add('hidden'); }
+function renderRhythmList() {
+  const box = $('rhythm-list');
+  if (!box) return;
+  box.innerHTML = '';
+  const curId = (rhythmPlaying && activePattern) ? activePattern.id : null;
+  allRhythms().forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'rhythm-row' + (r.id === curId ? ' playing' : '');
+    row.innerHTML =
+      `<span class="rhythm-play">${r.id === curId ? '⏸' : '▶'}</span>
+       <span class="rhythm-name">${escapeHtml(r.name)}</span>
+       ${r.custom ? '<button class="rhythm-del" data-del title="Sil">🗑</button>' : ''}`;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-del]')) { deleteCustomRhythm(r.id); return; }
+      if (r.id === curId) stopRhythm(); else playRhythmById(r.id);
+    });
+    box.appendChild(row);
+  });
+}
+function deleteCustomRhythm(id) {
+  if (!confirm('Bu ritim silinsin mi?')) return;
+  customRhythms = customRhythms.filter((r) => r.id !== id);
+  saveCustomRhythms();
+  if (activePattern && activePattern.id === id) stopRhythm();
+  renderRhythmList();
+}
+
+/* ---------- Ritim editörü (16 adım × Kick/Snare/HiHat) ---------- */
+let editRows = { k: [], s: [], h: [] };
+function openRhythmEditor() {
+  editRows = { k: Array(16).fill(false), s: Array(16).fill(false), h: Array(16).fill(false) };
+  $('rhythm-name').value = '';
+  renderStepGrid();
+  $('sheet-rhythm-edit').classList.remove('hidden');
+}
+function closeRhythmEditor() { $('sheet-rhythm-edit').classList.add('hidden'); stopRhythm(); }
+function renderStepGrid() {
+  const grid = $('step-grid');
+  grid.innerHTML = '';
+  [['k', 'Kick', '#4c8dff'], ['s', 'Snare', '#ff9f43'], ['h', 'HiHat', '#35d07f']].forEach((row) => {
+    const key = row[0], label = row[1], col = row[2];
+    const wrap = document.createElement('div');
+    wrap.className = 'step-row';
+    wrap.innerHTML = `<span class="step-label">${label}</span>`;
+    const cells = document.createElement('div');
+    cells.className = 'step-cells';
+    for (let i = 0; i < 16; i++) {
+      const cell = document.createElement('button');
+      cell.className = 'step-cell' + (i % 4 === 0 ? ' beat0' : '') + (editRows[key][i] ? ' on' : '');
+      if (editRows[key][i]) cell.style.background = col;
+      cell.addEventListener('click', () => { editRows[key][i] = !editRows[key][i]; renderStepGrid(); });
+      cells.appendChild(cell);
+    }
+    wrap.appendChild(cells);
+    grid.appendChild(wrap);
+  });
+}
+function editRowsToPattern(id, name) {
+  const str = (arr) => arr.map((b) => (b ? 'x' : '.')).join('');
+  return { id, name, k: str(editRows.k), s: str(editRows.s), h: str(editRows.h), custom: true };
+}
+function previewRhythmEdit() { playPattern(editRowsToPattern('preview', 'Önizleme')); updateRhythmBtn(); }
+function saveRhythmEdit() {
+  const name = $('rhythm-name').value.trim();
+  if (!name) { toast('Ritme bir ad ver'); return; }
+  if (!['k', 's', 'h'].some((key) => editRows[key].some(Boolean))) { toast('En az bir vuruş ekle'); return; }
+  customRhythms.push(editRowsToPattern(uid(), name));
+  saveCustomRhythms();
+  stopRhythm();
+  closeRhythmEditor();
+  renderRhythmList();
+  toast('“' + name + '” kaydedildi');
 }
 
 /* ---------- BPM: şarkı içinde slider + tap ---------- */
@@ -1683,10 +1799,16 @@ $('stage-font-down').addEventListener('click', () => changeFont(-2));
 $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
-$('kick-toggle').addEventListener('click', cycleKick);
+$('rhythm-btn').addEventListener('click', openRhythmSheet);
 $('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
 $('bpm-tap').addEventListener('click', bpmTap);
 $('edit-tap').addEventListener('click', tapTempo);
+$('rhythm-stop').addEventListener('click', stopRhythm);
+$('rhythm-close').addEventListener('click', closeRhythmSheet);
+$('rhythm-new').addEventListener('click', openRhythmEditor);
+$('rhythm-preview').addEventListener('click', previewRhythmEdit);
+$('rhythm-save').addEventListener('click', saveRhythmEdit);
+$('rhythm-edit-cancel').addEventListener('click', closeRhythmEditor);
 
 // Etiket menüsü
 $('label-segue').addEventListener('click', toggleSegue);
@@ -1698,7 +1820,8 @@ $('song-filter').addEventListener('input', (e) => { filterText = e.target.value;
 
 // Modal arkaplanina tiklayinca kapat
 [['modal-search', closeSearch], ['modal-setlists', closeSetlists], ['sheet-song', closeSongSheet],
- ['modal-edit', closeEdit], ['sheet-copy', closeCopy], ['sheet-label', closeLabel], ['sheet-genre', closeGenreOrder]]
+ ['modal-edit', closeEdit], ['sheet-copy', closeCopy], ['sheet-label', closeLabel], ['sheet-genre', closeGenreOrder],
+ ['sheet-rhythm', closeRhythmSheet], ['sheet-rhythm-edit', closeRhythmEditor]]
   .forEach(([id, fn]) => {
     $(id).addEventListener('click', (e) => { if (e.target.id === id) fn(); });
   });

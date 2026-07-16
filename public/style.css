@@ -171,13 +171,37 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
 .tap-btn { white-space: nowrap; }
 
-/* Metronom kick düğmesi: her vuruşta yanıp söner (ekranı yormaz) */
-#kick-toggle.beat {
+/* Davul düğmesi: her vuruşta yanıp söner */
+#rhythm-btn.beat {
   background: #fff !important;
   color: #000 !important;
   border-color: #fff !important;
   transform: scale(1.08);
 }
+/* Ritim menüsü */
+.sheet-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-right: 10px; }
+.rhythm-list { max-height: 46vh; overflow-y: auto; }
+.rhythm-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px; border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.rhythm-row.playing { background: rgba(53,208,127,0.14); }
+.rhythm-row .rhythm-play { font-size: 18px; color: var(--ok); width: 22px; }
+.rhythm-row .rhythm-name { flex: 1; font-size: 16px; }
+.rhythm-del { background: transparent; border: none; color: var(--danger); font-size: 16px; cursor: pointer; padding: 6px; }
+/* Ritim editörü (adım ızgarası) */
+.step-grid { padding: 6px 12px 12px; }
+.step-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.step-label { width: 48px; flex: none; font-size: 13px; color: var(--muted); }
+.step-cells { display: flex; gap: 3px; flex: 1; overflow-x: auto; }
+.step-cell {
+  flex: 1; min-width: 15px; height: 34px;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 5px;
+  cursor: pointer; padding: 0;
+}
+.step-cell.beat0 { border-color: var(--muted); }
+.edit-actions { display: flex; gap: 8px; padding: 8px 12px 4px; }
+.edit-actions .primary-btn { flex: 1; }
 .chip.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
 .bpm-slider { width: 110px; accent-color: var(--accent); vertical-align: middle; }
 

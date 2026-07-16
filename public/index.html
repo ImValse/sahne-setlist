@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=19" />
-  <link rel="stylesheet" href="/style.css?v=19" />
+  <link rel="stylesheet" href="/fonts.css?v=20" />
+  <link rel="stylesheet" href="/style.css?v=20" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -88,8 +88,8 @@
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
       </div>
       <div class="ctrl-group">
-        <span class="ctrl-label">Metronom</span>
-        <button id="kick-toggle" class="chip">🥁 Metronom</button>
+        <span class="ctrl-label">Davul</span>
+        <button id="rhythm-btn" class="chip">🥁 Davul</button>
         <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
         <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
         <span id="bpm-val" class="tr-value">100</span>
@@ -234,7 +234,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v19</b></span>
+        <span class="muted">Sürüm <b id="app-version">v20</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -290,6 +290,33 @@
     </div>
   </div>
 
+  <!-- ================= DAVUL RİTMİ (menü) ================= -->
+  <div id="sheet-rhythm" class="sheet hidden">
+    <div class="sheet-card">
+      <div class="sheet-head-row">
+        <div class="sheet-title">🥁 Davul Ritmi (tempo: <span id="rhythm-bpm">—</span> BPM)</div>
+        <button id="rhythm-stop" class="chip">⏹ Durdur</button>
+      </div>
+      <div id="rhythm-list" class="rhythm-list"></div>
+      <button id="rhythm-new" class="sheet-btn">＋ Yeni ritim oluştur</button>
+      <button id="rhythm-close" class="sheet-btn cancel">Kapat</button>
+    </div>
+  </div>
+
+  <!-- ================= RİTİM EDİTÖRÜ (16 adım) ================= -->
+  <div id="sheet-rhythm-edit" class="sheet hidden">
+    <div class="sheet-card">
+      <div class="sheet-title">Yeni ritim — kutulara dokunarak vuruş ekle (1 ölçü = 16 adım)</div>
+      <input id="rhythm-name" type="text" class="manual-key" placeholder="Ritim adı (ör. Benim Groove)" />
+      <div id="step-grid" class="step-grid"></div>
+      <div class="edit-actions">
+        <button id="rhythm-preview" class="chip">▶ Dinle</button>
+        <button id="rhythm-save" class="primary-btn">Kaydet</button>
+        <button id="rhythm-edit-cancel" class="chip">Vazgeç</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= TÜR SIRASI (sahne sırası) ================= -->
   <div id="sheet-genre" class="sheet hidden">
     <div class="sheet-card">
@@ -311,6 +338,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=19"></script>
+  <script src="/app.js?v=20"></script>
 </body>
 </html>
