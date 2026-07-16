@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=23" />
-  <link rel="stylesheet" href="/style.css?v=23" />
+  <link rel="stylesheet" href="/fonts.css?v=24" />
+  <link rel="stylesheet" href="/style.css?v=24" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -95,7 +95,9 @@
         <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM</button>
         <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
         <span id="bpm-val" class="tr-value">100</span>
-        <button id="bpm-slow" class="chip" title="Basılı tut: kademeli yavaşlat">🐢 Yavaşlat</button>
+        <button id="bpm-half" class="round-btn" title="BPM'i yarıya indir">÷2</button>
+        <button id="bpm-double" class="round-btn" title="BPM'i iki katına çıkar">×2</button>
+        <button id="bpm-slow" class="chip" title="Dokun: kademeli yavaşlat · tekrar dokun: durdur">🐢 Yavaşlat</button>
         <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
       </div>
       <div class="ctrl-group">
@@ -238,7 +240,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v23</b></span>
+        <span class="muted">Sürüm <b id="app-version">v24</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -346,6 +348,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=23"></script>
+  <script src="/app.js?v=24"></script>
 </body>
 </html>

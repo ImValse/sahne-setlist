@@ -1527,14 +1527,30 @@ function rhythmFinal() {
   if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
 }
 
-/* ---------- Kademeli yavaşlatma (ritardando) — basılı tut ---------- */
+/* ---------- Kademeli yavaşlatma (ritardando) — tek dokunuş aç/kapa ---------- */
 let slowTimer = null;
 function slowStep() {
   const b = effectiveBpm();
-  if (b > 40) { liveBpm = Math.max(40, b - 2); updateBpmUI(); }
+  if (b <= 40) { stopSlow(); return; }
+  liveBpm = Math.max(40, b - 2);
+  updateBpmUI();
 }
-function startSlow() { stopSlow(); slowStep(); slowTimer = setInterval(slowStep, 250); }
-function stopSlow() { if (slowTimer) clearInterval(slowTimer); slowTimer = null; }
+function startSlow() {
+  stopSlow();
+  slowStep();
+  slowTimer = setInterval(slowStep, 300);   // ~6-7 BPM/sn yumuşak yavaşlama
+  const b = $('bpm-slow'); if (b) b.classList.add('on');
+}
+function stopSlow() {
+  if (slowTimer) clearInterval(slowTimer);
+  slowTimer = null;
+  const b = $('bpm-slow'); if (b) b.classList.remove('on');
+}
+function toggleSlow() { slowTimer ? stopSlow() : startSlow(); }
+
+// BPM'i yarıya / iki katına (yarı-çift tempo düzeltmesi)
+function halveBpm() { setBpm(Math.round(effectiveBpm() / 2)); }
+function doubleBpm() { setBpm(Math.round(effectiveBpm() * 2)); }
 function updateRhythmBtn() {
   const b = $('rhythm-btn');
   if (rhythmPlaying && activePattern) { b.textContent = '🥁 ' + activePattern.name + ' ●'; b.classList.add('on'); }
@@ -1934,16 +1950,9 @@ $('rhythm-save-song').addEventListener('click', saveRhythmToSong);
 $('rhythm-final').addEventListener('click', rhythmFinal);
 $('rhythm-final-2').addEventListener('click', rhythmFinal);
 
-// Yavaşlat: basılı tutunca kademeli yavaşlar, bırakınca durur
-(() => {
-  const b = $('bpm-slow');
-  const down = (e) => { e.preventDefault(); startSlow(); };
-  const up = () => stopSlow();
-  b.addEventListener('pointerdown', down);
-  b.addEventListener('pointerup', up);
-  b.addEventListener('pointerleave', up);
-  b.addEventListener('pointercancel', up);
-})();
+$('bpm-slow').addEventListener('click', toggleSlow);   // tek dokunuş aç/kapa
+$('bpm-half').addEventListener('click', halveBpm);
+$('bpm-double').addEventListener('click', doubleBpm);
 $('rhythm-close').addEventListener('click', closeRhythmSheet);
 $('rhythm-new').addEventListener('click', openRhythmEditor);
 $('rhythm-preview').addEventListener('click', previewRhythmEdit);
