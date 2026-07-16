@@ -225,31 +225,54 @@ function chordMatchScore(a, b) {
   if (ra >= 0 && ra === rb) return 1;
   return 0;
 }
-// Açgözlü zincir: her şarkının son akoru bir sonrakinin ilk akoruna en çok
-// uysun. İlk şarkı "Kendi sıram"daki ilk şarkıdır; eşitlikte özgün sıra korunur.
+// Bir grup şarkıyı akor zinciriyle sırala. seed verilirse ilk şarkı, giriş
+// akoru seed'e en çok uyan şarkıdır (gruplar arası pürüzsüz geçiş için).
+// Akoru olmayan şarkı zinciri koparmaz; önceki akoru taşır. {order,last} döndürür.
+function chainByChords(group, seed, ends) {
+  const remaining = group.slice();
+  const out = [];
+  let cur = seed;
+  while (remaining.length) {
+    let bestI = 0, bestScore = -1;
+    for (let i = 0; i < remaining.length; i++) {
+      const e = ends[remaining[i].id];
+      const score = (cur && e && e.first) ? chordMatchScore(cur, e.first) : 0;
+      if (score > bestScore) { bestScore = score; bestI = i; }
+    }
+    const pick = remaining.splice(bestI, 1)[0];
+    out.push(pick);
+    const pe = ends[pick.id];
+    cur = (pe && pe.last) || cur;   // akor yoksa önceki çıkış akorunu koru
+  }
+  return { order: out, last: cur };
+}
+
+// Akor geçişli sıralama: önce TÜRLERE göre grupla (sahne sırası gibi,
+// sl.genreOrder), her tür grubu İÇİNDE akor zinciriyle diz; grup son akorunu
+// bir sonraki gruba taşı ki tür geçişleri de mümkünse akoruyla uysun.
 function generateChordOrder(sl) {
   const songs = sl.songs.slice();
   if (songs.length <= 1) return songs;
   const ends = {};
   songs.forEach((s) => { ends[s.id] = firstLastChords(s); });
-  const used = new Set();
+
+  if (!sl.genreOrder || !sl.genreOrder.length) sl.genreOrder = defaultGenreOrder();
+  const orderKeys = sl.genreOrder.slice();
+  // sette olup tür sırasında olmayan türleri sona ekle (güvenlik)
+  songs.forEach((s) => { const k = s.color || NONE_KEY; if (!orderKeys.includes(k)) orderKeys.push(k); });
+
   const out = [];
-  let cur = songs[0];
-  used.add(cur.id); out.push(cur);
-  while (out.length < songs.length) {
-    const le = ends[cur.id];
-    const last = le && le.last;
-    let best = null, bestScore = -1, bestIdx = Infinity;
-    songs.forEach((s, idx) => {
-      if (used.has(s.id)) return;
-      const e = ends[s.id];
-      const score = (last && e && e.first) ? chordMatchScore(last, e.first) : 0;
-      if (score > bestScore || (score === bestScore && idx < bestIdx)) {
-        bestScore = score; best = s; bestIdx = idx;
-      }
-    });
-    used.add(best.id); out.push(best); cur = best;
-  }
+  const done = new Set();
+  let carry = null;   // önceki tür grubunun son akoru
+  orderKeys.forEach((k) => {
+    if (done.has(k)) return;
+    done.add(k);
+    const group = songs.filter((s) => (s.color || NONE_KEY) === k);
+    if (!group.length) return;
+    const res = chainByChords(group, carry, ends);
+    res.order.forEach((s) => out.push(s));
+    carry = res.last;
+  });
   return out;
 }
 
@@ -371,8 +394,8 @@ function renderFilters() {
     bar.appendChild(b);
   };
 
-  // Sahne sırası modunda "tür sırasını düzenle" düğmesi
-  if (mode === 'stage') {
+  // Sahne & Akor geçişli modunda "tür sırasını düzenle" düğmesi
+  if (mode === 'stage' || mode === 'chord') {
     const sh = document.createElement('button');
     sh.className = 'filt shuffle';
     sh.textContent = '🎭 Tür sırası';
