@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=25" />
-  <link rel="stylesheet" href="/style.css?v=25" />
+  <link rel="stylesheet" href="/fonts.css?v=26" />
+  <link rel="stylesheet" href="/style.css?v=26" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -227,7 +227,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v25</b></span>
+        <span class="muted">Sürüm <b id="app-version">v26</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -322,6 +322,11 @@
           <input id="backing-url" type="url" placeholder="YouTube linki ya da ses dosyası linki…" autocomplete="off" />
           <button type="submit" class="primary-btn">Kaydet</button>
         </form>
+        <div class="bpm-row">
+          <span class="hint muted">— veya —</span>
+          <button type="button" id="backing-file-btn" class="chip">📂 Telefondan/bilgisayardan dosya seç (Moises indirmesi)</button>
+          <input id="backing-file" type="file" accept="audio/*" hidden />
+        </div>
         <div id="backing-current" class="backing-current muted">Bu şarkıda kayıtlı altyapı yok</div>
         <div class="bpm-row">
           <button id="backing-play" class="primary-btn">▶ Altyapıyı çal</button>
@@ -373,6 +378,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=25"></script>
+  <script src="/app.js?v=26"></script>
 </body>
 </html>

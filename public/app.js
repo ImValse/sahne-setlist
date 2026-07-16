@@ -1620,10 +1620,72 @@ function countInThen(done) {
   };
   step();
 }
-function playBacking() {
+// ---- IndexedDB: altyapı ses dosyalarını cihazda sakla ----
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('sahne-backing', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbPut(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('files', 'readwrite');
+    tx.objectStore('files').put(val, key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const rq = db.transaction('files', 'readonly').objectStore('files').get(key);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  });
+}
+async function idbDel(key) {
+  const db = await idbOpen();
+  return new Promise((res) => {
+    const tx = db.transaction('files', 'readwrite');
+    tx.objectStore('files').delete(key);
+    tx.oncomplete = () => res();
+  });
+}
+async function pickBackingFile(e) {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f || !currentSong) return;
+  try {
+    await idbPut(currentSong.id, f);           // dosyayı cihazda sakla
+    currentSong.backing = 'file:' + f.name;    // işaret
+    saveState();
+    updateBackingUI();
+    updateQuickBtn();
+    toast('Altyapı dosyası eklendi: ' + f.name);
+  } catch (err) { toast('Dosya kaydedilemedi: ' + err.message); }
+}
+
+let backingObjUrl = null;
+async function playBacking() {
   const url = currentSong && currentSong.backing;
   if (!url) { toast('Bu şarkıda altyapı yok'); return; }
   stopRhythm();
+  // Yerel dosya mı?
+  if (url.indexOf('file:') === 0) {
+    let blob;
+    try { blob = await idbGet(currentSong.id); } catch (_) {}
+    if (!blob) { toast('Dosya bu cihazda yok — bu cihazda tekrar seç'); return; }
+    countInThen(() => {
+      const a = $('backing-audio');
+      if (backingObjUrl) URL.revokeObjectURL(backingObjUrl);
+      backingObjUrl = URL.createObjectURL(blob);
+      a.src = backingObjUrl; a.classList.remove('hidden');
+      a.play().then(() => { backingPlaying = true; updateQuickBtn(); })
+        .catch((err) => toast('Çalınamadı: ' + err.message));
+    });
+    return;
+  }
   countInThen(() => {
     const id = ytId(url);
     if (id) {
@@ -1657,6 +1719,7 @@ function saveBacking(e) {
 function clearBacking() {
   if (!currentSong) return;
   stopBacking();
+  if (currentSong.backing && currentSong.backing.indexOf('file:') === 0) idbDel(currentSong.id);
   delete currentSong.backing;
   saveState();
   updateBackingUI();
@@ -1665,9 +1728,11 @@ function clearBacking() {
 }
 function updateBackingUI() {
   const url = currentSong && currentSong.backing;
-  $('backing-url').value = url || '';
   const cur = $('backing-current');
-  if (url) { cur.textContent = 'Kayıtlı: ' + url; cur.classList.remove('muted'); }
+  const isFile = url && url.indexOf('file:') === 0;
+  $('backing-url').value = (url && !isFile) ? url : '';
+  if (isFile) { cur.textContent = '🎵 Kayıtlı dosya: ' + url.slice(5); cur.classList.remove('muted'); }
+  else if (url) { cur.textContent = 'Kayıtlı: ' + url; cur.classList.remove('muted'); }
   else { cur.textContent = 'Bu şarkıda kayıtlı altyapı yok'; cur.classList.add('muted'); }
 }
 function saveRhythmToSong() {
@@ -2068,6 +2133,8 @@ $('backing-form').addEventListener('submit', saveBacking);
 $('backing-play').addEventListener('click', playBacking);
 $('backing-stop').addEventListener('click', stopBacking);
 $('backing-clear').addEventListener('click', clearBacking);
+$('backing-file-btn').addEventListener('click', () => $('backing-file').click());
+$('backing-file').addEventListener('change', pickBackingFile);
 const _ci = $('countin-toggle');
 _ci.checked = localStorage.getItem('countin') !== '0';
 _ci.addEventListener('change', () => localStorage.setItem('countin', _ci.checked ? '1' : '0'));
