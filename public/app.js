@@ -194,6 +194,66 @@ function renderBody(body, semi, preferFlat, mode) {
 }
 
 /* ==========================================================================
+ * AKOR GEÇİŞİ  — şarkının ilk/son akoru; "akor geçişli" sıralama için
+ * ========================================================================== */
+// Şarkının gövdesinden (transpoze dahil) ilk ve son akoru döndürür
+function firstLastChords(song) {
+  const body = song.body || '';
+  if (!body) return null;
+  const semi = song.transpose || 0;
+  const preferFlat = /b/.test(song.key || '');
+  const chords = [];
+  body.split('\n').forEach((line) => {
+    if (!isChordLine(line)) return;
+    line.trim().split(/\s+/).filter(Boolean).forEach((tok) => {
+      chords.push(semi ? transposeToken(tok, semi, preferFlat) : tok);
+    });
+  });
+  if (!chords.length) return null;
+  return { first: chords[0], last: chords[chords.length - 1] };
+}
+function chordRoot(tok) {
+  const m = (tok || '').match(/^([A-G](##?|bb?)?)/);
+  return m ? m[1] : '';
+}
+// Son akor (a) ile sonraki şarkının ilk akoru (b) ne kadar uyuyor:
+// 2 = birebir aynı akor, 1 = aynı kök (Am↔A), 0 = alakasız
+function chordMatchScore(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 2;
+  const ra = noteIndex(chordRoot(a)), rb = noteIndex(chordRoot(b));
+  if (ra >= 0 && ra === rb) return 1;
+  return 0;
+}
+// Açgözlü zincir: her şarkının son akoru bir sonrakinin ilk akoruna en çok
+// uysun. İlk şarkı "Kendi sıram"daki ilk şarkıdır; eşitlikte özgün sıra korunur.
+function generateChordOrder(sl) {
+  const songs = sl.songs.slice();
+  if (songs.length <= 1) return songs;
+  const ends = {};
+  songs.forEach((s) => { ends[s.id] = firstLastChords(s); });
+  const used = new Set();
+  const out = [];
+  let cur = songs[0];
+  used.add(cur.id); out.push(cur);
+  while (out.length < songs.length) {
+    const le = ends[cur.id];
+    const last = le && le.last;
+    let best = null, bestScore = -1, bestIdx = Infinity;
+    songs.forEach((s, idx) => {
+      if (used.has(s.id)) return;
+      const e = ends[s.id];
+      const score = (last && e && e.first) ? chordMatchScore(last, e.first) : 0;
+      if (score > bestScore || (score === bestScore && idx < bestIdx)) {
+        bestScore = score; best = s; bestIdx = idx;
+      }
+    });
+    used.add(best.id); out.push(best); cur = best;
+  }
+  return out;
+}
+
+/* ==========================================================================
  * GORUNUM: SETLIST LISTESI
  * ========================================================================== */
 const NONE_KEY = 'zz-none';
@@ -233,6 +293,7 @@ function orderedSongs(sl) {
     sl.songs.forEach((s) => { if (!seen.has(s.id)) out.push(s); }); // yeni eklenenler sona
     return out;
   }
+  if (mode === 'chord') return generateChordOrder(sl);
   const arr = [...sl.songs];
   const keyFn = mode === 'artist'
     ? (s) => (s.artist || 'zzz') + ' — ' + (s.song || s.title || '')
@@ -356,6 +417,7 @@ function renderList() {
     c.classList.toggle('active', c.dataset.sort === mode));
 
   const draggable = (mode === 'manual' || mode === 'stage');
+  const chordMode = mode === 'chord';
   const list = $('song-list');
   list.className = 'song-list' + (draggable ? '' : ' nodrag');
   list.innerHTML = '';
@@ -363,6 +425,7 @@ function renderList() {
 
   const q = trSimplify(filterText).toLowerCase().trim();
   let shown = 0;
+  let prevLast = null;   // akor geçişli modda önceki şarkının çıkış akoru
   orderedSongs(sl).forEach((song, i) => {
     if (q) {
       const hay = trSimplify((song.artist || '') + ' ' + (song.song || song.title || '')).toLowerCase();
@@ -383,6 +446,18 @@ function renderList() {
     const dur = song.duration ? `<div class="badge">${fmtDuration(song.duration)}</div>` : '';
     const tag = song.color ? `<span class="badge tag-chip" style="background:${colorCss(song.color)}">${escapeHtml(colorName(song.color))}</span>` : '';
     const segue = song.segue ? '<span class="segue-mark" title="Sonrakine bağlı">🔗</span>' : '';
+    let chordbadge = '';
+    if (chordMode) {
+      const e = firstLastChords(song);
+      if (e) {
+        const linked = prevLast && chordMatchScore(prevLast, e.first) > 0;
+        chordbadge = `<span class="badge chordbadge${linked ? ' linked' : ''}" title="giriş → çıkış akoru">${linked ? '🔗 ' : ''}${escapeHtml(e.first)}→${escapeHtml(e.last)}</span>`;
+        prevLast = e.last;
+      } else {
+        chordbadge = '<span class="badge chordbadge dim" title="Akor bulunamadı — şarkıyı indir">akor yok</span>';
+        prevLast = null;
+      }
+    }
     card.innerHTML =
       `<button class="tick" data-tick title="Çalındı işareti">${song.played ? '✓' : ''}</button>
        <div class="song-num">${i + 1}</div>
@@ -390,6 +465,7 @@ function renderList() {
          <div class="t">${escapeHtml(song.song || song.title || 'Şarkı')} ${segue}</div>
          <div class="a">${escapeHtml(song.artist || '')}</div>
        </div>
+       ${chordbadge}
        ${tag}
        ${dur}
        ${song.transpose ? `<div class="badge">${song.transpose > 0 ? '+' : ''}${song.transpose}</div>` : ''}
@@ -1183,9 +1259,41 @@ async function addSongFromUrl(result, itemEl) {
  * ========================================================================== */
 function openSetlists() {
   renderSetlists();
+  updateOfflineBtn();
   $('modal-setlists').classList.remove('hidden');
 }
 function closeSetlists() { $('modal-setlists').classList.add('hidden'); }
+
+/* ---------- Set öncesi çevrimdışı indirme ---------- */
+function updateOfflineBtn() {
+  const btn = $('btn-offline');
+  if (!btn) return;
+  const sl = currentSetlist();
+  const need = sl.songs.filter((s) => !s.body && s.source).length;
+  btn.disabled = !need;
+  btn.textContent = need ? `📥 Bu seti indir (${need} şarkı)` : '✓ Tümü çevrimdışı hazır';
+}
+async function downloadSetOffline() {
+  const sl = currentSetlist();
+  const todo = sl.songs.filter((s) => !s.body && s.source);
+  const btn = $('btn-offline');
+  if (!todo.length) { toast('Bu setin tüm şarkıları zaten hazır ✓'); return; }
+  if (btn) btn.disabled = true;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < todo.length; i++) {
+    const s = todo[i];
+    if (btn) btn.textContent = `İndiriliyor ${i + 1}/${todo.length}…`;
+    try {
+      const res = await fetch('/api/song?url=' + encodeURIComponent(s.source));
+      const data = await res.json();
+      if (res.ok && data.body) { s.body = data.body; if (data.key && !s.key) s.key = data.key; ok++; }
+      else fail++;
+    } catch (_) { fail++; }
+  }
+  saveState();
+  updateOfflineBtn();
+  toast(`Çevrimdışı hazır: ${ok} indirildi` + (fail ? `, ${fail} başarısız (internet?)` : ' ✓'));
+}
 
 function renderSetlists() {
   const box = $('setlist-items');
@@ -2412,6 +2520,7 @@ $('next-peek').addEventListener('click', () => gotoRelative(1));
 $('song-stageshare').addEventListener('click', () => { closeSongSheet(); openStageShare(); });
 $('song-peek-toggle').addEventListener('click', () => { closeSongSheet(); toggleNextPeek(); });
 $('ss-open-btn').addEventListener('click', () => { closeSetlists(); openStageShare(); });
+$('btn-offline').addEventListener('click', downloadSetOffline);
 $('ss-exit').addEventListener('click', closeStageShare);
 $('nav-prev').addEventListener('click', () => gotoRelative(-1));
 $('nav-next').addEventListener('click', () => gotoRelative(1));

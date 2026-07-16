@@ -655,6 +655,22 @@ body.stage .stage-nav {
   .song-body { font-size: 20px; }
 }
 
+/* ---------- Akor geçişli sıralama rozeti ---------- */
+.chordbadge {
+  font-family: "RepSans", monospace;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--chord);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.chordbadge.linked {
+  background: rgba(53, 208, 127, 0.16);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.chordbadge.dim { color: var(--muted); font-weight: 400; }
+
 /* ---------- Sıradaki şarkı önizleme şeridi ---------- */
 .next-peek {
   position: fixed;
