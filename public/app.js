@@ -613,6 +613,7 @@ async function openSong(songId) {
   const song = sl.songs.find((s) => s.id === songId);
   if (!song) return;
   currentSong = song;
+  ensureRhythmAvailable(song);   // eşitlenen özel davulu yerel listeye geri kur
   // 1 dakikadan fazla açık kalırsa otomatik "çalındı" işaretle (elle de tikleyebilirsin)
   clearTimeout(autoPlayTimer);
   autoPlayTimer = setTimeout(() => {
@@ -1518,6 +1519,21 @@ try { customRhythms = JSON.parse(localStorage.getItem('rhythms_custom') || '[]')
 function saveCustomRhythms() { localStorage.setItem('rhythms_custom', JSON.stringify(customRhythms)); }
 function allRhythms() { return PRESETS.concat(customRhythms); }
 function getRhythm(id) { return allRhythms().find((r) => r.id === id); }
+// Şarkının kayıtlı davulu: önce yerel listede ara; bulunamazsa (ör. karşı
+// cihazda yapılmış özel ritim) şarkıya gömülü song.rhythmData'yı kullan.
+// Böylece davul cihazlar arası eşitlenir.
+function songRhythm(s) {
+  if (!s || !s.rhythm) return null;
+  return getRhythm(s.rhythm) || (s.rhythmData && s.rhythmData.id === s.rhythm ? s.rhythmData : null);
+}
+// Karşı cihazda yapılmış özel ritim eşitlenince, yerel ritim listesinde yoksa
+// gömülü desenden geri kur (böylece menüde görünür ve tekrar kullanılabilir).
+function ensureRhythmAvailable(s) {
+  if (!s || !s.rhythm || !s.rhythmData) return;
+  if (getRhythm(s.rhythm)) return;
+  customRhythms.push({ id: s.rhythmData.id, name: s.rhythmData.name, k: s.rhythmData.k, s: s.rhythmData.s, h: s.rhythmData.h, custom: true });
+  saveCustomRhythms();
+}
 
 function rhythmScheduler() {
   const bpm = effectiveBpm();
@@ -1613,8 +1629,7 @@ function updateQuickBtn() {
   const b = $('play-quick');
   if (!b) return;
   const backs = songBackings(currentSong);
-  const rid = currentSong && currentSong.rhythm;
-  const rpat = rid && getRhythm(rid);
+  const rpat = songRhythm(currentSong);
   if (!backs.length && !rpat) { b.classList.add('hidden'); return; }
   b.classList.remove('hidden');
   if (backs.length) {
@@ -1622,7 +1637,7 @@ function updateQuickBtn() {
     b.textContent = (backingPlaying ? '⏸ ' : '▶ ') + (act.label || 'Altyapı');
     b.classList.toggle('on', backingPlaying);
   } else {
-    const thisPlaying = rhythmPlaying && activePattern && activePattern.id === rid;
+    const thisPlaying = rhythmPlaying && activePattern && activePattern.id === rpat.id;
     b.textContent = (thisPlaying ? '⏸ ' : '▶ ') + rpat.name;
     b.classList.toggle('on', thisPlaying);
   }
@@ -1633,11 +1648,9 @@ function playSaved() {
     if (backingPlaying) stopBacking(); else playBacking();
     return;
   }
-  const id = currentSong && currentSong.rhythm;
-  if (!id) return;
-  if (rhythmPlaying && activePattern && activePattern.id === id) { stopRhythm(); return; }
-  const pat = getRhythm(id);
-  if (!pat) { toast('Kayıtlı davul bulunamadı'); return; }
+  const pat = songRhythm(currentSong);
+  if (!pat) return;
+  if (rhythmPlaying && activePattern && activePattern.id === pat.id) { stopRhythm(); return; }
   if (playPattern(pat)) updateQuickBtn();
 }
 
@@ -1878,6 +1891,8 @@ function saveRhythmToSong() {
   if (!currentSong) return;
   if (!(rhythmPlaying && activePattern)) { toast('Önce menüden bir ritim çal, sonra kaydet'); return; }
   currentSong.rhythm = activePattern.id;
+  // Deseni de göm ki diğer cihazlarda (özel ritim olsa bile) çalışsın/senkronlansın
+  currentSong.rhythmData = { id: activePattern.id, name: activePattern.name, k: activePattern.k, s: activePattern.s, h: activePattern.h };
   saveState();
   updateQuickBtn();
   renderRhythmList();
@@ -2137,7 +2152,10 @@ async function syncPoll() {
         if (!$('view-song').classList.contains('hidden')) {
           const sl = currentSetlist();
           const s = sl && sl.songs.find((x) => x.id === openId);
-          if (s) { currentSong = s; updateNav(); } else showList();
+          if (s) {
+            currentSong = s; ensureRhythmAvailable(s); updateNav(); updateQuickBtn();
+            if (!$('modal-music').classList.contains('hidden')) { renderRhythmList(); renderBackingList(); }
+          } else showList();
         } else {
           renderList();
         }
