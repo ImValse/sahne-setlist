@@ -52,6 +52,39 @@ function currentSetlist() {
   return state.setlists.find((s) => s.id === state.currentId) || state.setlists[0];
 }
 
+// İstek Havuzu: sahnede seyirci isteklerini hızlıca çekmek için özel setlist
+let lastNonPoolId = null;
+function ensureRequestPool() {
+  if (!state.setlists.some((s) => s.isPool)) {
+    state.setlists.push({ id: 'reqpool', name: '🎧 İstek Havuzu', songs: [], isPool: true });
+  }
+}
+// Havuzdaki bir şarkıyı asıl sete (havuz olmayan son setliste) kopyala
+function addFromPool(songId) {
+  const pool = state.setlists.find((s) => s.isPool);
+  const song = pool && pool.songs.find((s) => s.id === songId);
+  if (!song) return;
+  let target = state.setlists.find((s) => s.id === lastNonPoolId && !s.isPool)
+    || state.setlists.find((s) => !s.isPool);
+  if (!target) { toast('Önce normal bir setlist seç'); return; }
+  target.songs.push({ ...song, id: uid(), addedAt: Date.now(), played: false });
+  saveState();
+  toast('“' + (song.song || 'Şarkı') + '” → ' + target.name);
+}
+function togglePool() {
+  ensureRequestPool();
+  const cur = currentSetlist();
+  if (cur && cur.isPool) {
+    state.currentId = (lastNonPoolId && state.setlists.some((s) => s.id === lastNonPoolId))
+      ? lastNonPoolId : (state.setlists.find((s) => !s.isPool) || {}).id;
+  } else {
+    lastNonPoolId = state.currentId;
+    state.currentId = state.setlists.find((s) => s.isPool).id;
+  }
+  saveState();
+  renderList();
+}
+
 /* ==========================================================================
  * AKOR / TRANSPOZE
  * ========================================================================== */
@@ -348,10 +381,11 @@ function renderList() {
        ${dur}
        ${song.transpose ? `<div class="badge">${song.transpose > 0 ? '+' : ''}${song.transpose}</div>` : ''}
        ${pending}
-       <button class="tag-btn" data-tag title="Tür/renk/segue">🏷</button>
+       ${sl.isPool ? '<button class="tag-btn" data-addset title="Sete ekle">＋Set</button>' : '<button class="tag-btn" data-tag title="Tür/renk/segue">🏷</button>'}
        <div class="drag" data-handle>⠿</div>`;
     card.addEventListener('click', (ev) => {
       if (ev.target.closest('[data-tick]')) { togglePlayed(song.id); return; }
+      if (ev.target.closest('[data-addset]')) { addFromPool(song.id); return; }
       if (ev.target.closest('[data-tag]')) { openLabel(song.id); return; }
       if (!card._dragged) openSong(song.id);
     });
@@ -1032,14 +1066,14 @@ function renderSetlists() {
     row.innerHTML =
       `<span class="name">${escapeHtml(sl.name)}</span>
        <span class="cnt">${sl.songs.length}</span>
-       <button class="mini rename" title="Yeniden adlandır">✎</button>
-       <button class="mini danger del" title="Sil">🗑</button>`;
+       ${sl.isPool ? '' : '<button class="mini rename" title="Yeniden adlandır">✎</button><button class="mini danger del" title="Sil">🗑</button>'}`;
     row.querySelector('.name').addEventListener('click', () => {
       state.currentId = sl.id;
       saveState();
       renderList();
       closeSetlists();
     });
+    if (sl.isPool) { box.appendChild(row); return; }
     row.querySelector('.rename').addEventListener('click', (e) => {
       e.stopPropagation();
       const name = prompt('Setlist adı:', sl.name);
@@ -1047,10 +1081,10 @@ function renderSetlists() {
     });
     row.querySelector('.del').addEventListener('click', (e) => {
       e.stopPropagation();
-      if (state.setlists.length === 1) { toast('Son setlist silinemez'); return; }
+      if (state.setlists.filter((x) => !x.isPool).length === 1) { toast('Son setlist silinemez'); return; }
       if (!confirm('“' + sl.name + '” silinsin mi?')) return;
       state.setlists = state.setlists.filter((x) => x.id !== sl.id);
-      if (state.currentId === sl.id) state.currentId = state.setlists[0].id;
+      if (state.currentId === sl.id) state.currentId = (state.setlists.find((x) => !x.isPool) || state.setlists[0]).id;
       saveState();
       renderSetlists();
       renderList();
@@ -1571,13 +1605,14 @@ function updateRhythmBtn() { updateQuickBtn(); }   // geriye dönük uyum
 function updateQuickBtn() {
   const b = $('play-quick');
   if (!b) return;
-  const hasBacking = !!(currentSong && currentSong.backing);
+  const backs = songBackings(currentSong);
   const rid = currentSong && currentSong.rhythm;
   const rpat = rid && getRhythm(rid);
-  if (!hasBacking && !rpat) { b.classList.add('hidden'); return; }
+  if (!backs.length && !rpat) { b.classList.add('hidden'); return; }
   b.classList.remove('hidden');
-  if (hasBacking) {
-    b.textContent = backingPlaying ? '⏸ Altyapı' : '▶ Altyapı';
+  if (backs.length) {
+    const act = backs.find((x) => x.id === currentSong.activeBacking) || backs[0];
+    b.textContent = (backingPlaying ? '⏸ ' : '▶ ') + (act.label || 'Altyapı');
     b.classList.toggle('on', backingPlaying);
   } else {
     const thisPlaying = rhythmPlaying && activePattern && activePattern.id === rid;
@@ -1585,9 +1620,9 @@ function updateQuickBtn() {
     b.classList.toggle('on', thisPlaying);
   }
 }
-// ▶ düğmesi: altyapı öncelikli, yoksa kayıtlı davul
+// ▶ düğmesi: altyapı öncelikli (aktif olan), yoksa kayıtlı davul
 function playSaved() {
-  if (currentSong && currentSong.backing) {
+  if (songBackings(currentSong).length) {
     if (backingPlaying) stopBacking(); else playBacking();
     return;
   }
@@ -1603,8 +1638,23 @@ function playSaved() {
  * ALTYAPI (YouTube linki veya doğrudan ses linki) + 4-3-2-1 sayım
  * ========================================================================== */
 let backingPlaying = false;
+let backingCurId = null;
+let backingObjUrl = null;
 let ytPlayer = null;
 let ytReady = false;
+let scrollSyncTimer = null;
+
+// Eski tekil song.backing'i çoklu song.backings dizisine geçir
+function songBackings(s) {
+  if (!s) return [];
+  if (!s.backings && s.backing) {
+    s.backings = [{ id: s.id, label: 'Altyapı', url: s.backing }];
+    s.activeBacking = s.id;
+    delete s.backing;
+    saveState();
+  }
+  return s.backings || [];
+}
 function loadYT() {
   if (window.YT && window.YT.Player) { ytReady = true; return; }
   if (document.getElementById('yt-api')) return;
@@ -1627,8 +1677,8 @@ function ensureYtPlayer(cb) {
     events: {
       onReady: () => cb(),
       onStateChange: (e) => {
-        // 0 = ended, 2 = paused, 1 = playing
-        if (e.data === YT.PlayerState.ENDED || e.data === YT.PlayerState.PAUSED) { backingPlaying = false; updateQuickBtn(); }
+        if (e.data === YT.PlayerState.ENDED) { onBackingEnded(); }
+        else if (e.data === YT.PlayerState.PAUSED) { backingPlaying = false; stopScrollSync(); updateQuickBtn(); renderBackingListSafe(); }
         else if (e.data === YT.PlayerState.PLAYING) { backingPlaying = true; updateQuickBtn(); }
       },
     },
@@ -1684,88 +1734,138 @@ async function idbDel(key) {
     tx.oncomplete = () => res();
   });
 }
+/* --- senkron kaydırma (sözler altyapıya göre) --- */
+function startScrollSync(getPos) {
+  stopScrollSync();
+  const el = $('autoscroll-toggle');
+  if (el && !el.checked) return;
+  scrollSyncTimer = setInterval(() => {
+    const p = getPos();
+    if (!p || !p.dur || isNaN(p.dur) || p.dur < 1) return;
+    const box = $('view-song');
+    const max = box.scrollHeight - box.clientHeight;
+    if (max <= 0) return;
+    box.scrollTop = Math.max(0, Math.min(max, (p.t / p.dur) * max));
+  }, 500);
+}
+function stopScrollSync() { if (scrollSyncTimer) clearInterval(scrollSyncTimer); scrollSyncTimer = null; }
+function onBackingStarted(kind) {
+  updateQuickBtn(); renderBackingListSafe();
+  const el = $('autoscroll-toggle');
+  if (el && el.checked) {
+    if (kind === 'audio') startScrollSync(() => { const a = $('backing-audio'); return { t: a.currentTime, dur: a.duration }; });
+    else startScrollSync(() => { try { return { t: ytPlayer.getCurrentTime(), dur: ytPlayer.getDuration() }; } catch (_) { return null; } });
+  }
+}
+function onBackingEnded() {
+  backingPlaying = false; stopScrollSync(); updateQuickBtn(); renderBackingListSafe();
+  const el = $('autonext-toggle');
+  if (el && el.checked) gotoRelative(1);
+}
+
+/* --- altyapı ekle / çal / seç / sil --- */
+function addBacking(label, url) {
+  if (!currentSong) return null;
+  songBackings(currentSong);
+  currentSong.backings = currentSong.backings || [];
+  const b = { id: uid(), label: label || 'Altyapı', url };
+  currentSong.backings.push(b);
+  currentSong.activeBacking = b.id;
+  saveState();
+  renderBackingList(); updateQuickBtn();
+  return b;
+}
+function saveBacking(e) {
+  e.preventDefault();
+  const url = $('backing-url').value.trim();
+  if (!url || !currentSong) return;
+  addBacking($('backing-label').value.trim(), url);
+  $('backing-url').value = ''; $('backing-label').value = '';
+  toast('Altyapı eklendi');
+}
 async function pickBackingFile(e) {
   const f = e.target.files && e.target.files[0];
   e.target.value = '';
   if (!f || !currentSong) return;
-  try {
-    await idbPut(currentSong.id, f);           // dosyayı cihazda sakla
-    currentSong.backing = 'file:' + f.name;    // işaret
-    saveState();
-    updateBackingUI();
-    updateQuickBtn();
-    toast('Altyapı dosyası eklendi: ' + f.name);
-  } catch (err) { toast('Dosya kaydedilemedi: ' + err.message); }
+  const b = addBacking($('backing-label').value.trim() || f.name, 'file:' + f.name);
+  try { await idbPut(b.id, f); } catch (err) { toast('Dosya kaydedilemedi: ' + err.message); }
+  $('backing-label').value = '';
+  toast('Altyapı dosyası eklendi');
 }
-
-let backingObjUrl = null;
-async function playBacking() {
-  const url = currentSong && currentSong.backing;
-  if (!url) { toast('Bu şarkıda altyapı yok'); return; }
+function deleteBacking(id) {
+  if (!currentSong || !currentSong.backings) return;
+  const b = currentSong.backings.find((x) => x.id === id);
+  if (b && b.url.indexOf('file:') === 0) idbDel(id);
+  currentSong.backings = currentSong.backings.filter((x) => x.id !== id);
+  if (currentSong.activeBacking === id) currentSong.activeBacking = currentSong.backings[0] ? currentSong.backings[0].id : null;
+  if (backingCurId === id) stopBacking();
+  saveState();
+  renderBackingList(); updateQuickBtn();
+}
+async function playBacking(id) {
+  const list = songBackings(currentSong);
+  if (!list.length) { toast('Bu şarkıda altyapı yok'); return; }
+  id = id || (currentSong && currentSong.activeBacking) || list[0].id;
+  const b = list.find((x) => x.id === id) || list[0];
+  currentSong.activeBacking = b.id; backingCurId = b.id; saveState();
   stopRhythm();
-  // Yerel dosya mı?
+  const url = b.url;
   if (url.indexOf('file:') === 0) {
     let blob;
-    try { blob = await idbGet(currentSong.id); } catch (_) {}
-    if (!blob) { toast('Dosya bu cihazda yok — bu cihazda tekrar seç'); return; }
+    try { blob = await idbGet(b.id); } catch (_) {}
+    if (!blob) { toast('Dosya bu cihazda yok — bu cihazda tekrar ekle'); return; }
     countInThen(() => {
       const a = $('backing-audio');
       if (backingObjUrl) URL.revokeObjectURL(backingObjUrl);
       backingObjUrl = URL.createObjectURL(blob);
       a.src = backingObjUrl; a.classList.remove('hidden');
-      a.play().then(() => { backingPlaying = true; updateQuickBtn(); })
-        .catch((err) => toast('Çalınamadı: ' + err.message));
+      a.play().then(() => { backingPlaying = true; onBackingStarted('audio'); }).catch((err) => toast('Çalınamadı: ' + err.message));
     });
     return;
   }
   countInThen(() => {
-    const id = ytId(url);
-    if (id) {
+    const vid = ytId(url);
+    if (vid) {
       $('backing-audio').classList.add('hidden');
-      ensureYtPlayer(() => { ytPlayer.loadVideoById(id); ytPlayer.playVideo(); backingPlaying = true; updateQuickBtn(); });
+      ensureYtPlayer(() => { ytPlayer.loadVideoById(vid); ytPlayer.playVideo(); backingPlaying = true; onBackingStarted('yt'); });
     } else {
       const a = $('backing-audio');
       a.src = url; a.classList.remove('hidden');
-      a.play().then(() => { backingPlaying = true; updateQuickBtn(); })
-        .catch((e) => toast('Altyapı çalınamadı: ' + e.message));
+      a.play().then(() => { backingPlaying = true; onBackingStarted('audio'); }).catch((e) => toast('Altyapı çalınamadı: ' + e.message));
     }
   });
 }
 function stopBacking() {
   backingPlaying = false;
+  stopScrollSync();
   try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (_) {}
   const a = $('backing-audio'); if (a) a.pause();
-  updateQuickBtn();
+  updateQuickBtn(); renderBackingListSafe();
 }
-function saveBacking(e) {
-  e.preventDefault();
-  const url = $('backing-url').value.trim();
-  if (!url) return;
-  if (!currentSong) return;
-  currentSong.backing = url;
-  saveState();
-  updateBackingUI();
-  updateQuickBtn();
-  toast('Altyapı bu şarkıya kaydedildi');
-}
-function clearBacking() {
-  if (!currentSong) return;
-  stopBacking();
-  if (currentSong.backing && currentSong.backing.indexOf('file:') === 0) idbDel(currentSong.id);
-  delete currentSong.backing;
-  saveState();
-  updateBackingUI();
-  updateQuickBtn();
-  toast('Altyapı kaldırıldı');
-}
-function updateBackingUI() {
-  const url = currentSong && currentSong.backing;
-  const cur = $('backing-current');
-  const isFile = url && url.indexOf('file:') === 0;
-  $('backing-url').value = (url && !isFile) ? url : '';
-  if (isFile) { cur.textContent = '🎵 Kayıtlı dosya: ' + url.slice(5); cur.classList.remove('muted'); }
-  else if (url) { cur.textContent = 'Kayıtlı: ' + url; cur.classList.remove('muted'); }
-  else { cur.textContent = 'Bu şarkıda kayıtlı altyapı yok'; cur.classList.add('muted'); }
+function renderBackingListSafe() { if (!$('modal-music').classList.contains('hidden')) renderBackingList(); }
+function renderBackingList() {
+  const box = $('backing-list');
+  if (!box) return;
+  const list = songBackings(currentSong);
+  box.innerHTML = '';
+  if (!list.length) { box.innerHTML = '<div class="hint muted" style="padding:8px 2px">Bu şarkıda kayıtlı altyapı yok</div>'; return; }
+  const activeId = currentSong && currentSong.activeBacking;
+  list.forEach((b) => {
+    const isFile = b.url.indexOf('file:') === 0;
+    const playing = backingPlaying && backingCurId === b.id;
+    const sub = isFile ? '📁 ' + b.url.slice(5) : b.url;
+    const row = document.createElement('div');
+    row.className = 'rhythm-row' + (b.id === activeId ? ' playing' : '');
+    row.innerHTML =
+      `<span class="rhythm-play">${playing ? '⏸' : '▶'}</span>
+       <span class="rhythm-name">${escapeHtml(b.label || 'Altyapı')}${b.id === activeId ? ' ⭐' : ''}<span class="backing-sub">${escapeHtml(sub)}</span></span>
+       <button class="rhythm-del" data-del title="Sil">🗑</button>`;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-del]')) { deleteBacking(b.id); return; }
+      if (playing) stopBacking(); else playBacking(b.id);
+    });
+    box.appendChild(row);
+  });
 }
 function saveRhythmToSong() {
   if (!currentSong) return;
@@ -1781,7 +1881,7 @@ function saveRhythmToSong() {
 function openMusic(tab) {
   updateBpmUI();
   renderRhythmList();
-  updateBackingUI();
+  renderBackingList();
   switchMusicTab(tab || 'drum');
   $('modal-music').classList.remove('hidden');
 }
@@ -2072,6 +2172,7 @@ $('manual-form').addEventListener('submit', manualAdd);
 $('repertoire-form').addEventListener('submit', fetchRepertoire);
 $('repertoire-import').addEventListener('click', importRepertoire);
 
+$('btn-pool').addEventListener('click', togglePool);
 $('btn-setlists').addEventListener('click', openSetlists);
 $('setlists-close').addEventListener('click', closeSetlists);
 $('setlist-form').addEventListener('submit', createSetlist);
@@ -2168,14 +2269,21 @@ $('rhythm-edit-cancel').addEventListener('click', closeRhythmEditor);
 
 // Altyapı
 $('backing-form').addEventListener('submit', saveBacking);
-$('backing-play').addEventListener('click', playBacking);
 $('backing-stop').addEventListener('click', stopBacking);
-$('backing-clear').addEventListener('click', clearBacking);
 $('backing-file-btn').addEventListener('click', () => $('backing-file').click());
 $('backing-file').addEventListener('change', pickBackingFile);
-const _ci = $('countin-toggle');
-_ci.checked = localStorage.getItem('countin') !== '0';
-_ci.addEventListener('change', () => localStorage.setItem('countin', _ci.checked ? '1' : '0'));
+$('backing-audio').addEventListener('ended', onBackingEnded);
+(function () {
+  const bind = (id, key, def) => {
+    const el = $(id);
+    const v = localStorage.getItem(key);
+    el.checked = v === null ? def : v !== '0';
+    el.addEventListener('change', () => localStorage.setItem(key, el.checked ? '1' : '0'));
+  };
+  bind('countin-toggle', 'countin', true);
+  bind('autoscroll-toggle', 'autoscroll', true);
+  bind('autonext-toggle', 'autonext', false);
+})();
 
 // Etiket menüsü
 $('label-segue').addEventListener('click', toggleSegue);
@@ -2275,6 +2383,7 @@ async function forceUpdate() {
 }
 
 /* ---------- Baslat ---------- */
+ensureRequestPool();
 setupStageDrag();
 renderList();
 syncResume();

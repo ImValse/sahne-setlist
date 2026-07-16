@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=27" />
-  <link rel="stylesheet" href="/style.css?v=27" />
+  <link rel="stylesheet" href="/fonts.css?v=28" />
+  <link rel="stylesheet" href="/style.css?v=28" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -23,6 +23,7 @@
         <span id="current-setlist-name">Setlist</span>
         <span id="current-setlist-count" class="muted"></span>
       </div>
+      <button id="btn-pool" class="icon-btn" title="İstek Havuzu">🎧</button>
       <button id="btn-search" class="primary-btn">＋ Şarkı</button>
     </header>
 
@@ -227,7 +228,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v27</b></span>
+        <span class="muted">Sürüm <b id="app-version">v28</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -334,23 +335,23 @@
 
       <!-- ALTYAPI -->
       <div id="mpane-backing" class="pane hidden">
-        <p class="hint muted">Şarkının altyapısını yapıştır (YouTube linki ya da doğrudan ses/mp3 linki), bu şarkıya kaydet. Çalınca ekranda 4-3-2-1 sayar (aşağıdan kapatabilirsin). Not: link kaydedilir ve oradan çalınır (dosya indirilmez).</p>
+        <p class="hint muted">Şarkıya birden çok altyapı ekleyip etiketleyebilirsin (Vokalsiz, Gitarsız, Sadece bateri…). Bir satıra dokun → o altyapıyı çalar/seçer. Link kaydedilir ve oradan çalınır (dosya indirilmez); Moises dosyanı 📂 ile ekle.</p>
+        <div id="backing-list" class="rhythm-list"></div>
+        <button id="backing-stop" class="sheet-btn">⏹ Durdur</button>
+        <div class="hint muted" style="padding:8px 2px 2px">Yeni altyapı ekle:</div>
+        <input id="backing-label" type="text" class="manual-key" placeholder="Etiket (ör. Vokalsiz, Gitarsız, Sadece bateri)" />
         <form id="backing-form" class="search-row">
-          <input id="backing-url" type="url" placeholder="YouTube linki ya da ses dosyası linki…" autocomplete="off" />
-          <button type="submit" class="primary-btn">Kaydet</button>
+          <input id="backing-url" type="url" placeholder="YouTube ya da ses linki…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Ekle</button>
         </form>
         <div class="bpm-row">
           <span class="hint muted">— veya —</span>
-          <button type="button" id="backing-file-btn" class="chip">📂 Telefondan/bilgisayardan dosya seç (Moises indirmesi)</button>
+          <button type="button" id="backing-file-btn" class="chip">📂 Dosya seç ve ekle (Moises)</button>
           <input id="backing-file" type="file" accept="audio/*" hidden />
         </div>
-        <div id="backing-current" class="backing-current muted">Bu şarkıda kayıtlı altyapı yok</div>
-        <div class="bpm-row">
-          <button id="backing-play" class="primary-btn">▶ Altyapıyı çal</button>
-          <button id="backing-stop" class="chip">⏹ Durdur</button>
-          <button id="backing-clear" class="chip">🗑 Kaldır</button>
-        </div>
         <label class="countin-toggle"><input type="checkbox" id="countin-toggle" checked /> Başlamadan önce 4-3-2-1 say</label>
+        <label class="countin-toggle"><input type="checkbox" id="autoscroll-toggle" checked /> Sözleri altyapıya göre otomatik kaydır</label>
+        <label class="countin-toggle"><input type="checkbox" id="autonext-toggle" /> Altyapı bitince sonraki şarkıya geç</label>
         <div id="yt-player"></div>
         <audio id="backing-audio" class="backing-audio hidden" controls></audio>
       </div>
@@ -395,6 +396,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=27"></script>
+  <script src="/app.js?v=28"></script>
 </body>
 </html>
