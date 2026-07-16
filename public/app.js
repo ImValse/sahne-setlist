@@ -30,6 +30,13 @@ let liveRev = 0;
 let applyingLive = false;
 let livePollTimer = null;
 
+// Sıradaki şarkı önizleme şeridi (varsayılan açık)
+let nextPeek = localStorage.getItem('nextpeek') !== '0';
+// Ortak Sahne (grup canlı ekranı)
+let stageShareOn = false;
+let shareRev = 0;
+let sharePollTimer = null;
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -689,6 +696,113 @@ function updateNav() {
   $('stage-next').disabled = !next;
   $('stage-prev').textContent = prev ? '‹ ' + (prev.song || prev.title || 'Önceki') : '‹ Önceki';
   $('stage-next').textContent = next ? (next.song || next.title || 'Sonraki') + ' ›' : 'Sonraki ›';
+  updateNextPeek(next);
+}
+
+/* ==========================================================================
+ * SIRADAKI ŞARKI ÖNİZLEME ŞERİDİ  (söz kaydırırken bile altta görünür)
+ * ========================================================================== */
+function updateNextPeek(next) {
+  const bar = $('next-peek');
+  if (!bar) return;
+  const songOpen = !$('view-song').classList.contains('hidden');
+  const stage = document.body.classList.contains('stage');
+  if (!nextPeek || !songOpen || stage || !currentSong || !next) {
+    bar.classList.add('hidden');
+    document.body.classList.remove('has-peek');
+    return;
+  }
+  $('next-peek-name').textContent = next.song || next.title || 'Şarkı';
+  const meta = [];
+  const k = songKeyStr(next);
+  if (k) meta.push('Ton ' + k);
+  if (next.bpm) meta.push(next.bpm + ' BPM');
+  $('next-peek-meta').textContent = meta.length ? '· ' + meta.join(' · ') : '';
+  bar.classList.remove('hidden');
+  document.body.classList.add('has-peek');
+}
+function updatePeekLabel() {
+  const b = $('song-peek-toggle');
+  if (b) b.textContent = nextPeek ? '👁 Sıradaki şeridi: Açık' : '👁 Sıradaki şeridi: Kapalı';
+}
+function toggleNextPeek() {
+  nextPeek = !nextPeek;
+  localStorage.setItem('nextpeek', nextPeek ? '1' : '0');
+  updatePeekLabel();
+  updateNav();
+  toast(nextPeek ? 'Sıradaki şeridi açık' : 'Sıradaki şeridi kapalı');
+}
+
+/* ==========================================================================
+ * ORTAK SAHNE  — grubun o an çaldığı şarkıyı büyük & otomatik gösteren ekran
+ *   (grup kodu açıkken lider hangi şarkıya geçerse bu ekran da geçer)
+ * ========================================================================== */
+function findSongAnywhere(songId, setlistId) {
+  const pref = setlistId && state.setlists.find((x) => x.id === setlistId);
+  if (pref) { const s = pref.songs.find((x) => x.id === songId); if (s) return { song: s, sl: pref }; }
+  for (const sl of state.setlists) {
+    const s = sl.songs.find((x) => x.id === songId);
+    if (s) return { song: s, sl };
+  }
+  return null;
+}
+
+function openStageShare() {
+  stageShareOn = true;
+  shareRev = 0;
+  $('modal-stageshare').classList.remove('hidden');
+  requestWakeLock();
+  $('ss-sync').textContent = sync.connected ? ('grup: ' + sync.room) : 'yerel (grup kapalı)';
+  const sl = currentSetlist();
+  const first = currentSong || orderedSongs(sl)[0];
+  if (first) renderStageShare(first, currentSong ? sl : sl);
+  else { $('ss-title').textContent = 'Şarkı seçilmedi'; $('ss-body').textContent = ''; $('ss-next').textContent = ''; }
+  sharePoll();
+  startSharePoll();
+}
+function closeStageShare() {
+  stageShareOn = false;
+  stopSharePoll();
+  $('modal-stageshare').classList.add('hidden');
+}
+function startSharePoll() { stopSharePoll(); sharePollTimer = setInterval(sharePoll, 2000); }
+function stopSharePoll() { if (sharePollTimer) clearInterval(sharePollTimer); sharePollTimer = null; }
+
+async function sharePoll() {
+  if (!stageShareOn || !sync.connected || !sync.room) return;
+  try {
+    const r = await fetch('/api/live/' + encodeURIComponent(sync.room));
+    const d = await r.json();
+    if (!d || typeof d.rev !== 'number' || d.rev <= shareRev || !d.songId) return;
+    shareRev = d.rev;
+    const f = findSongAnywhere(d.songId, d.setlistId);
+    if (f) renderStageShare(f.song, f.sl);
+  } catch (_) { /* ag hatasi -> sonraki yoklamada */ }
+}
+
+async function renderStageShare(song, sl) {
+  if (!song) return;
+  $('ss-title').textContent = song.song || song.title || 'Şarkı';
+  $('ss-artist').textContent = song.artist || '';
+  const k = songKeyStr(song);
+  $('ss-key').textContent = k ? ('Ton ' + k) : '';
+  $('ss-bpm').textContent = song.bpm ? (song.bpm + ' BPM') : '';
+  const list = orderedSongs(sl);
+  const i = list.findIndex((x) => x.id === song.id);
+  const next = (i >= 0 && i < list.length - 1) ? list[i + 1] : null;
+  $('ss-next').textContent = next ? ('Sıradaki › ' + (next.song || next.title || 'Şarkı')) : '— Set sonu —';
+  // Gövde tembel yükleme
+  if (!song.body && song.source) {
+    $('ss-body').textContent = 'Yükleniyor…';
+    try {
+      const res = await fetch('/api/song?url=' + encodeURIComponent(song.source));
+      const data = await res.json();
+      if (res.ok) { song.body = data.body; if (data.key) song.key = data.key; saveState(); }
+    } catch (_) {}
+  }
+  const semi = song.transpose || 0;
+  $('ss-body').innerHTML = renderBody(song.body || '', semi, /b/.test(song.key || ''), viewMode);
+  $('ss-body-wrap').scrollTop = 0;
 }
 
 let viewMode = localStorage.getItem('sahne_viewmode') || 'both';
@@ -782,6 +896,14 @@ function updateKeyDisplay() {
   }
   el.textContent = keyStr;
   $('stage-key').textContent = keyStr;
+}
+
+// Herhangi bir şarkının ekranda görünecek tonu (transpoze dahil)
+function songKeyStr(s) {
+  const orig = (s.key || '').trim();
+  const semi = s.transpose || 0;
+  if (!orig) return semi ? ((semi > 0 ? '+' : '') + semi) : '';
+  return transposeToken(orig, semi, /b/.test(orig));
 }
 
 let fontSize = parseInt(localStorage.getItem('sahne_font') || '18', 10);
@@ -1242,6 +1364,7 @@ function showList() {
   releaseWakeLock();
   $('view-song').classList.add('hidden');
   $('view-list').classList.remove('hidden');
+  updateNextPeek(null);   // şeridi gizle
   renderList();
 }
 
@@ -1275,6 +1398,7 @@ function enterStage() {
   document.body.classList.add('stage');
   $('stage-exit').classList.remove('hidden');
   applyStagePos();
+  updateNextPeek(null);   // sahne modunda şerit gizli
   fitToWidth();
 }
 
@@ -1325,8 +1449,10 @@ function setupStageDrag() {
   });
 }
 function exitStage() {
+  const wasStage = document.body.classList.contains('stage');
   document.body.classList.remove('stage');
   $('stage-exit').classList.add('hidden');
+  if (wasStage && !$('view-song').classList.contains('hidden')) updateNav();  // şeridi geri getir
   fitToWidth();
 }
 function toggleStage() {
@@ -2282,6 +2408,11 @@ $('import-file').addEventListener('change', (e) => {
 
 $('btn-back').addEventListener('click', showList);
 $('btn-song-menu').addEventListener('click', openSongSheet);
+$('next-peek').addEventListener('click', () => gotoRelative(1));
+$('song-stageshare').addEventListener('click', () => { closeSongSheet(); openStageShare(); });
+$('song-peek-toggle').addEventListener('click', () => { closeSongSheet(); toggleNextPeek(); });
+$('ss-open-btn').addEventListener('click', () => { closeSetlists(); openStageShare(); });
+$('ss-exit').addEventListener('click', closeStageShare);
 $('nav-prev').addEventListener('click', () => gotoRelative(-1));
 $('nav-next').addEventListener('click', () => gotoRelative(1));
 $('stage-prev').addEventListener('click', () => gotoRelative(-1));
@@ -2478,4 +2609,5 @@ ensureRequestPool();
 setupStageDrag();
 renderList();
 updateFollowBtn();
+updatePeekLabel();
 syncResume();

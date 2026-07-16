@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=31" />
-  <link rel="stylesheet" href="/style.css?v=31" />
+  <link rel="stylesheet" href="/fonts.css?v=32" />
+  <link rel="stylesheet" href="/style.css?v=32" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -124,6 +124,29 @@
     <button id="stage-next" class="stage-nav-btn">Sonraki ›</button>
   </div>
 
+  <!-- Sıradaki şarkı önizleme şeridi (söz kaydırırken bile görünür) -->
+  <button id="next-peek" class="next-peek hidden">
+    <span class="np-cap">Sıradaki ›</span>
+    <span id="next-peek-name" class="np-name">—</span>
+    <span id="next-peek-meta" class="np-meta"></span>
+  </button>
+
+  <!-- ================= ORTAK SAHNE (grup canlı ekranı) ================= -->
+  <div id="modal-stageshare" class="stageshare hidden">
+    <div class="ss-top">
+      <span class="ss-badge">📺 ORTAK SAHNE</span>
+      <span id="ss-sync" class="ss-sync"></span>
+      <button id="ss-exit" class="icon-btn">✕ Çık</button>
+    </div>
+    <div class="ss-head">
+      <div id="ss-title" class="ss-title">—</div>
+      <div id="ss-artist" class="ss-artist"></div>
+      <div class="ss-metarow"><span id="ss-key" class="ss-key"></span><span id="ss-bpm" class="ss-bpm"></span></div>
+    </div>
+    <div id="ss-body-wrap" class="ss-body-wrap"><pre id="ss-body" class="song-body ss-bodytext"></pre></div>
+    <div id="ss-next" class="ss-next"></div>
+  </div>
+
   <div id="progress" class="progress hidden"></div>
 
   <!-- ================= ARAMA / EKLEME MODAL ================= -->
@@ -217,6 +240,12 @@
       </div>
 
       <div class="sync-box">
+        <div class="sync-title">📺 Ortak Sahne Ekranı</div>
+        <p class="hint muted">Bir telefon/tableti sehpaya koy; grubun o an çaldığı şarkıyı büyük ve otomatik gösterir (grup kodu açıkken lider hangi şarkıya geçerse bu ekran da geçer). Prompter gibi.</p>
+        <button id="ss-open-btn" class="chip">📺 Ortak Sahne'yi aç</button>
+      </div>
+
+      <div class="sync-box">
         <div class="sync-title">💾 Yedekle / Taşı</div>
         <p class="hint muted">Setlistlerin bu cihazın tarayıcısında saklanır. Başka bir adrese (ör. yeni sitene) taşımak ya da yedeklemek için: burada <b>indir</b>, yeni sitede <b>geri yükle</b>.</p>
         <div class="backup-row">
@@ -227,7 +256,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v31</b></span>
+        <span class="muted">Sürüm <b id="app-version">v32</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -236,6 +265,8 @@
   <!-- ================= SARKI MENU (alt sayfa) ================= -->
   <div id="sheet-song" class="sheet hidden">
     <div class="sheet-card">
+      <button id="song-stageshare" class="sheet-btn">📺 Ortak Sahne ekranı</button>
+      <button id="song-peek-toggle" class="sheet-btn">👁 Sıradaki şeridi: Açık</button>
       <button id="song-edit" class="sheet-btn">✎ Düzenle (akor/söz/süre)</button>
       <button id="song-copy" class="sheet-btn">⧉ Başka setliste ekle</button>
       <button id="song-move-up" class="sheet-btn">↑ Yukarı taşı</button>
@@ -395,6 +426,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=31"></script>
+  <script src="/app.js?v=32"></script>
 </body>
 </html>

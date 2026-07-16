@@ -654,3 +654,57 @@ body.stage .stage-nav {
 @media (min-width: 700px) {
   .song-body { font-size: 20px; }
 }
+
+/* ---------- Sıradaki şarkı önizleme şeridi ---------- */
+.next-peek {
+  position: fixed;
+  left: 8px; right: 8px;
+  bottom: calc(8px + var(--safe-bottom));
+  z-index: 40;
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(20, 24, 33, 0.92);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+}
+.next-peek:active { background: var(--bg-3); }
+.next-peek .np-cap { color: var(--accent); font-weight: 700; font-size: 13px; flex: none; }
+.next-peek .np-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-peek .np-meta { color: var(--muted); font-size: 12px; white-space: nowrap; flex: none; margin-left: auto; }
+/* şerit açıkken sözlerin altında yer bırak */
+body.has-peek .song-scroll { padding-bottom: 64px; }
+
+/* ---------- Ortak Sahne (grup canlı ekranı) ---------- */
+.stageshare {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column;
+  background: var(--bg);
+  padding: calc(8px + var(--safe-top)) 14px calc(10px + var(--safe-bottom));
+}
+.ss-top { display: flex; align-items: center; gap: 10px; }
+.ss-badge { color: var(--ok); font-weight: 800; letter-spacing: 1px; font-size: 13px; }
+.ss-sync { color: var(--muted); font-size: 12px; }
+.ss-top .icon-btn { margin-left: auto; }
+.ss-head { padding: 8px 2px 6px; border-bottom: 1px solid var(--line); }
+.ss-title { font-size: 30px; font-weight: 800; line-height: 1.1; }
+.ss-artist { color: var(--muted); font-size: 16px; margin-top: 2px; }
+.ss-metarow { display: flex; gap: 14px; margin-top: 6px; }
+.ss-key { color: var(--chord); font-weight: 700; font-size: 17px; }
+.ss-bpm { color: var(--accent); font-weight: 700; font-size: 17px; }
+.ss-body-wrap { flex: 1; min-height: 0; overflow: auto; margin-top: 8px; }
+.ss-bodytext { font-size: 22px; margin: 0; }
+.ss-next {
+  border-top: 1px solid var(--line);
+  padding-top: 8px; margin-top: 6px;
+  color: var(--accent); font-weight: 700; font-size: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (min-width: 700px) {
+  .ss-title { font-size: 40px; }
+  .ss-bodytext { font-size: 26px; }
+}
