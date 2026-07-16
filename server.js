@@ -394,33 +394,79 @@ app.get('/api/fetch-url', async (req, res) => {
   }
 });
 
-// Google tarzı web araması: sorguya "akor" ekleyip DuckDuckGo'dan farklı
-// akor sitelerinden sonuç getirir. Her sonuç: {title, url, site, artist, song}.
-function decodeUddg(href) {
-  const m = href.match(/[?&]uddg=([^&]+)/);
-  if (m) { try { return decodeURIComponent(m[1]); } catch (_) {} }
-  return href.startsWith('//') ? 'https:' + href : href;
+// Google tarzı web araması: sorguya "akor" ekleyip farklı akor sitelerinden
+// sonuç getirir. Her sonuç: {title, url, site, artist, song}.
+// Render gibi veri-merkezi IP'lerinden bazı motorlar engellendiği için birden
+// çok motor sırayla denenir (Bing -> DuckDuckGo).
+function toResult(url, rawTitle, seen, out) {
+  if (!/^https?:\/\//i.test(url)) return;
+  if (/(^|\.)(bing|duckduckgo|microsoft|msn|google|yahoo)\.(com|net)/i.test(url)) return;
+  let site = '';
+  try { site = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return; }
+  const key = url.split('#')[0];
+  if (seen.has(key)) return;
+  seen.add(key);
+  const title = stripTags(rawTitle);
+  const { artist, song } = splitTitle(title);
+  out.push({ title, url, site, artist, song });
+}
+// Bing sonuç linkleri redirect ile sarılı: ...&u=a1<base64url>
+function bingRealUrl(href) {
+  const m = href.replace(/&amp;/g, '&').match(/[?&]u=a1([^&]+)/);
+  if (m) {
+    try {
+      let b = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b.length % 4) b += '=';
+      const dec = Buffer.from(b, 'base64').toString('utf8');
+      if (/^https?:\/\//i.test(dec)) return dec;
+    } catch (_) {}
+  }
+  return href.replace(/&amp;/g, '&');
+}
+async function searchBing(q) {
+  const html = await fetchText('https://www.bing.com/search?count=20&setlang=tr&q=' + encodeURIComponent(q));
+  const re = /<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const out = []; const seen = new Set(); let m;
+  while ((m = re.exec(html)) !== null && out.length < 16) {
+    toResult(bingRealUrl(m[1]), m[2], seen, out);
+  }
+  return out;
+}
+async function searchDdg(q) {
+  const html = await fetchText('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q));
+  const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const out = []; const seen = new Set(); let m;
+  while ((m = re.exec(html)) !== null && out.length < 16) {
+    let url = m[1];
+    const um = url.match(/[?&]uddg=([^&]+)/);
+    if (um) { try { url = decodeURIComponent(um[1]); } catch (_) {} }
+    else if (url.startsWith('//')) url = 'https:' + url;
+    toResult(url, m[2], seen, out);
+  }
+  return out;
+}
+// Akor/söz sitesi mi? (marka/alışveriş gibi alakasız sonuçları elemek için)
+function isChordish(r) {
+  return /akor|repertuar|chord|nota|gitar|guitar|\btab\b|sarki|sozleri|sözleri|lyric|karnaval|izlesene/i
+    .test((r.site || '') + ' ' + (r.url || '') + ' ' + (r.title || ''));
 }
 async function webSearchChords(query) {
   const q = /akor|chord|tab/i.test(query) ? query : query + ' akor';
-  const html = await fetchText('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q));
-  const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const out = [];
-  const seen = new Set();
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const url = decodeUddg(m[1]);
-    if (!/^https?:\/\//i.test(url) || /duckduckgo\.com/i.test(url)) continue;
-    let site = '';
-    try { site = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { continue; }
-    if (seen.has(url)) continue;
-    seen.add(url);
-    const title = stripTags(m[2]);
-    const { artist, song } = splitTitle(title);
-    out.push({ title, url, site, artist, song });
-    if (out.length >= 14) break;
+  const engines = [searchBing, searchDdg];
+  let lastErr = null;
+  let bestNonChord = [];
+  for (const eng of engines) {
+    try {
+      const r = (await eng(q)) || [];
+      // Yalnızca akor/söz sitelerini döndür (marka/alışveriş vb. eleyerek)
+      const chord = r.filter(isChordish);
+      if (chord.length) return chord;
+      if (r.length && !bestNonChord.length) bestNonChord = r;
+    } catch (err) { lastErr = err; }
   }
-  return out;
+  if (lastErr && !bestNonChord.length) throw lastErr;
+  // Hiç akor sitesi bulunamadıysa boş dön (alakasız sonuç göstermektense)
+  return [];
 }
 
 app.get('/api/websearch', async (req, res) => {
