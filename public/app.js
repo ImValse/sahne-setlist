@@ -1258,19 +1258,29 @@ function makeRepItem(r) {
   item.addEventListener('click', () => addSongFromUrl(r, item));
   return item;
 }
-function makeWebItem(r) {
+// "Şu sitede ara" satırı: tıklayınca kullanıcının tarayıcısında (Türkiye'de,
+// engelsiz) o siteyi "şarkı adı akor" ile açar. Sunucu tarafı arama Render'ın
+// veri-merkezi IP'sinden engellendiği için en güvenilir yol budur.
+function webSearchSites(q) {
+  const eq = encodeURIComponent(q + ' akor');
+  const raw = encodeURIComponent(q);
+  return [
+    { name: 'Google', desc: '“' + q + ' akor” — tüm siteler birden', icon: '🔎', url: 'https://www.google.com/search?q=' + eq },
+    { name: 'akorlar.com', desc: 'Türkçe akor arşivi', icon: '🎸', url: 'https://www.akorlar.com/ara/' + raw },
+    { name: 'akorculuk.com', desc: 'Akor + ritim + nota', icon: '🎵', url: 'https://www.google.com/search?q=' + encodeURIComponent('site:akorculuk.com ' + q) },
+    { name: 'Ultimate Guitar', desc: 'Yabancı şarkılar için', icon: '🎼', url: 'https://www.ultimate-guitar.com/search.php?search_type=title&value=' + raw },
+  ];
+}
+function makeSearchLinkItem(site) {
   const item = document.createElement('div');
   item.className = 'result-item web';
-  const name = r.song ? escapeHtml((r.artist ? r.artist + ' – ' : '') + r.song) : escapeHtml(r.title);
   item.innerHTML =
     `<div class="info">
-       <div class="t">${name}</div>
-       <div class="a"><span class="src src-web">${escapeHtml(r.site)}</span></div>
+       <div class="t">${site.icon} ${escapeHtml(site.name)}’de ara</div>
+       <div class="a">${escapeHtml(site.desc)}</div>
      </div>
-     <button class="webopen" title="Sayfayı aç">↗</button>
-     <div class="add">＋</div>`;
-  item.querySelector('.webopen').addEventListener('click', (ev) => { ev.stopPropagation(); window.open(r.url, '_blank', 'noopener'); });
-  item.addEventListener('click', () => addFromWeb(r, item));
+     <div class="add">↗</div>`;
+  item.addEventListener('click', () => window.open(site.url, '_blank', 'noopener'));
   return item;
 }
 
@@ -1290,79 +1300,19 @@ async function doSearch(e) {
     const data = await res.json();
     if (res.ok && data.results && data.results.length) {
       repCount = data.results.length;
-      addSearchSection(box, '⚡ Hızlı ekle');
+      addSearchSection(box, '⚡ Hızlı ekle (repertuarim)');
       data.results.forEach((r) => box.appendChild(makeRepItem(r)));
     }
-  } catch (_) { /* web aramasına devam */ }
+  } catch (_) { /* alttaki site aramalarına devam */ }
 
-  // 2) Web — "şarkı adı akor" ile tüm sitelerden (istediğinden ekle)
-  addSearchSection(box, '🌐 Diğer sitelerde ara — istediğinden ekle');
-  const webLoad = document.createElement('div');
-  webLoad.className = 'muted websearch-load';
-  webLoad.innerHTML = '<span class="spinner"></span> Web’de aranıyor…';
-  box.appendChild(webLoad);
-  try {
-    const res = await fetch('/api/websearch?q=' + encodeURIComponent(q));
-    const data = await res.json();
-    webLoad.remove();
-    if (res.ok && data.results && data.results.length) {
-      data.results.forEach((r) => box.appendChild(makeWebItem(r)));
-      status.textContent = (repCount ? repCount + ' hızlı + ' : '') + data.results.length + ' web sonucu';
-    } else {
-      const none = document.createElement('div');
-      none.className = 'muted'; none.style.padding = '6px 2px';
-      none.textContent = 'Web sonucu bulunamadı.';
-      box.appendChild(none);
-      status.textContent = repCount ? repCount + ' sonuç' : 'Sonuç bulunamadı';
-    }
-  } catch (err) {
-    webLoad.textContent = 'Web araması başarısız: ' + err.message;
-    status.textContent = repCount ? repCount + ' sonuç' : 'Arama kısmen başarısız';
-  }
-}
-
-// Web sonucundan ekle: önce otomatik oku; okunamazsa (ör. Cloudflare) sayfayı
-// aç ve "Link/Elle" sekmesini hazırla (kopyala-yapıştır).
-async function addFromWeb(result, itemEl) {
-  const add = itemEl.querySelector('.add');
-  if (add.dataset.busy) return;
-  add.dataset.busy = '1';
-  add.innerHTML = '<span class="spinner"></span>';
-  try {
-    const res = await fetch('/api/fetch-url?url=' + encodeURIComponent(result.url));
-    const data = await res.json();
-    if (!res.ok) {
-      add.textContent = '↗'; add.style.color = 'var(--accent)'; add.dataset.busy = '';
-      if (result.artist) $('manual-artist').value = result.artist;
-      if (result.song) $('manual-song').value = result.song;
-      $('import-url').value = result.url;
-      switchTab('manual');
-      toast(data.error || 'Otomatik okunamadı. Sayfa açıldı — akoru kopyalayıp yapıştır.');
-      window.open(result.url, '_blank', 'noopener');
-      return;
-    }
-    const artist = data.artist || result.artist || '';
-    const song = {
-      id: uid(),
-      title: (artist ? artist + ' - ' : '') + (data.song || result.song || ''),
-      artist,
-      song: data.song || result.song || result.title,
-      key: data.key || '',
-      body: data.body,
-      source: data.source || result.url,
-      transpose: 0,
-      color: guessGenre(artist),
-      addedAt: Date.now(),
-    };
-    currentSetlist().songs.push(song);
-    saveState();
-    renderList();
-    add.textContent = '✓'; add.style.color = 'var(--ok)'; add.dataset.busy = '';
-    toast('“' + song.song + '” eklendi (' + result.site + ')');
-  } catch (err) {
-    add.textContent = '！'; add.style.color = 'var(--danger)'; add.dataset.busy = '';
-    toast('Eklenemedi: ' + err.message);
-  }
+  // 2) Diğer siteler — kullanıcının tarayıcısında ara, linki Link/Elle'ye yapıştır
+  addSearchSection(box, '🌐 Bulamadın mı? Başka sitede ara');
+  const info = document.createElement('div');
+  info.className = 'muted websearch-info';
+  info.textContent = 'Bir siteye dokun → tarayıcıda “' + q + ' akor” araması açılır. Şarkıyı bul, sayfanın linkini kopyala → “🔗 Link/Elle” sekmesine yapıştırıp Getir’e bas. (Okumaya kapalı sitede akor+sözü kopyalayıp yapıştır.)';
+  box.appendChild(info);
+  webSearchSites(q).forEach((site) => box.appendChild(makeSearchLinkItem(site)));
+  status.textContent = repCount ? (repCount + ' hızlı sonuç · aşağıda diğer siteler') : 'Repertuarim’de yok — aşağıdaki sitelerde ara';
 }
 
 async function addSongFromUrl(result, itemEl) {

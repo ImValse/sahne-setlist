@@ -594,6 +594,7 @@ body.stage .stage-nav {
 }
 .result-section:first-child { padding-top: 2px; }
 .websearch-load { padding: 10px 2px; }
+.websearch-info { font-size: 12px; padding: 8px 2px 4px; line-height: 1.5; }
 /* Web sonucu: sayfayı açma düğmesi */
 .webopen {
   flex: none;
