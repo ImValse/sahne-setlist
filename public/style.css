@@ -694,6 +694,26 @@ body.stage .stage-nav {
   .song-body { font-size: 20px; }
 }
 
+/* ---------- İçe aktarma bildirimi (bookmarklet) ---------- */
+.import-banner {
+  display: block; width: calc(100% - 24px); margin: 6px 12px 2px;
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(53, 208, 127, 0.16); border: 1px solid var(--ok);
+  color: var(--ok); font-weight: 700; font-size: 14px; text-align: left; cursor: pointer;
+}
+.import-banner:active { background: rgba(53, 208, 127, 0.26); }
+/* ---------- Bookmarklet kutusu (setlist menüsü) ---------- */
+.bkm-box { margin-top: 8px; }
+.bkm-code {
+  width: 100%; background: var(--bg); color: var(--muted);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px;
+  resize: vertical; white-space: pre-wrap; word-break: break-all;
+}
+.bkm-box .chip { margin-top: 8px; }
+.bkm-steps { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.bkm-steps b { color: var(--text); }
+
 /* ---------- Akor geçişli sıralama rozeti ---------- */
 .chordbadge {
   font-family: "RepSans", monospace;

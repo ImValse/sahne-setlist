@@ -30,6 +30,10 @@ let liveRev = 0;
 let applyingLive = false;
 let livePollTimer = null;
 
+// Bookmarklet içe aktarma kutusu
+let pendingImports = [];
+let pendingImportId = null;
+
 // Sıradaki şarkı önizleme şeridi (varsayılan açık)
 let nextPeek = localStorage.getItem('nextpeek') !== '0';
 // Ortak Sahne (grup canlı ekranı)
@@ -1061,7 +1065,103 @@ function openSearch() {
   switchTab('online');
   setTimeout(() => $('search-input').focus(), 50);
 }
-function closeSearch() { $('modal-search').classList.add('hidden'); }
+function closeSearch() { $('modal-search').classList.add('hidden'); pendingImportId = null; }
+
+/* ==========================================================================
+ * BOOKMARKLET İLE İÇE AKTARMA
+ *  - buildBookmarklet: telefon tarayıcısında akorlar.com gibi sayfada çalışıp
+ *    akoru grup koduna gönderen "yer imi" kodunu üretir.
+ *  - checkInbox/renderImportBanner: gelen içe aktarmaları gösterir.
+ * ========================================================================== */
+// Yer imine yapıştırılacak fonksiyon (kaynak olduğu gibi bookmarklet'e gömülür)
+function _bkmFn() {
+  var R = '__ROOM__', API = '__API__';
+  function ic(x) { return /^[A-G](#|b)?(m|maj|min|dim|aug|sus|add)*[0-9]*(sus[0-9]+)?(add[0-9]+)?(\/[A-G](#|b)?)?$/.test(x); }
+  function cl(t) { var L = (t || '').split('\n'), c = 0; for (var i = 0; i < L.length; i++) { var k = L[i].trim().split(/\s+/).filter(Boolean); if (k.length && k.every(ic)) c++; } return c; }
+  var els = [].slice.call(document.querySelectorAll('pre'));
+  var mx = 0; els.forEach(function (e) { mx = Math.max(mx, cl(e.innerText)); });
+  if (mx < 2) { els = [].slice.call(document.querySelectorAll('div,section,article,td')); els.forEach(function (e) { mx = Math.max(mx, cl(e.innerText)); }); }
+  if (mx < 2) { alert('Bu sayfada akor bulunamadi. Akorlarin oldugu sarki sayfasinda dene.'); return; }
+  var best = null, bl = 1e9;
+  els.forEach(function (e) { var c = cl(e.innerText), t = e.innerText || ''; if (c >= Math.max(2, mx * 0.6) && t.length < bl) { bl = t.length; best = e; } });
+  if (!best) { alert('Akor blogu secilemedi.'); return; }
+  var body = (best.innerText || '').replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  var title = (((document.querySelector('h1') || {}).innerText) || document.title || '').trim();
+  fetch(API + '/api/inbox/' + R, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title, body: body, source: location.href }) })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { alert(d && d.ok ? 'Gonderildi! Sahne Setlist uygulamasini ac, ustteki ice aktarma bildirimine dokun.' : ('Hata: ' + ((d && d.error) || '?'))); })
+    .catch(function (e) { alert('Gonderilemedi: ' + e); });
+}
+function buildBookmarklet(room) {
+  var src = _bkmFn.toString().replace('__ROOM__', room).replace('__API__', location.origin);
+  return 'javascript:(' + src + ')()';
+}
+function renderBookmarklet() {
+  const box = $('bkm-box');
+  if (!box) return;
+  if (!sync.room) {
+    box.innerHTML = '<p class="hint muted">Önce yukarıdan bir <b>grup kodu</b> ile bağlan, sonra yer imi kodu burada çıkar.</p>';
+    return;
+  }
+  const code = buildBookmarklet(sync.room);
+  box.innerHTML =
+    '<textarea id="bkm-code" class="bkm-code" readonly rows="3"></textarea>' +
+    '<button id="bkm-copy" class="chip">📋 Yer imi kodunu kopyala</button>' +
+    '<ol class="bkm-steps">' +
+    '<li>Yukarıdaki kodu <b>kopyala</b>.</li>' +
+    '<li>Tarayıcında bir sayfayı <b>yer imlerine ekle</b> (paylaş → yer imi ekle).</li>' +
+    '<li>O yer imini <b>düzenle</b>: adını “Sahne’ye Ekle” yap, <b>adres/URL</b> kısmına kopyaladığın kodu <b>yapıştır</b>, kaydet.</li>' +
+    '<li>akorlar.com’da bir şarkı sayfasındayken bu yer imine <b>dokun</b> → akor buraya gelir, aşağıda bildirim çıkar.</li>' +
+    '</ol>';
+  $('bkm-code').value = code;
+  $('bkm-copy').addEventListener('click', () => {
+    const ta = $('bkm-code'); ta.focus(); ta.select();
+    try { navigator.clipboard.writeText(code); } catch (_) { try { document.execCommand('copy'); } catch (__) {} }
+    toast('Yer imi kodu kopyalandı');
+  });
+}
+
+function parseTitleClient(t) {
+  const parts = String(t || '').split(/\s*[-–|·]\s*/).map((x) => x.trim())
+    .filter(Boolean).filter((p) => !/^akor/i.test(p) && !/^tab$/i.test(p));
+  if (parts.length >= 2) return { artist: parts[0], song: parts[1] };
+  return { artist: '', song: parts[0] || String(t || '') };
+}
+async function checkInbox() {
+  if (!sync.room) { pendingImports = []; renderImportBanner(); return; }
+  try {
+    const r = await fetch('/api/inbox/' + encodeURIComponent(sync.room));
+    const d = await r.json();
+    pendingImports = (d && d.items) || [];
+  } catch (_) { return; }
+  renderImportBanner();
+}
+function renderImportBanner() {
+  const b = $('import-banner');
+  if (!b) return;
+  if (!pendingImports.length) { b.classList.add('hidden'); return; }
+  b.textContent = '📥 Tarayıcıdan ' + pendingImports.length + ' şarkı geldi — eklemek için dokun';
+  b.classList.remove('hidden');
+}
+function openNextImport() {
+  if (!pendingImports.length) { renderImportBanner(); return; }
+  const item = pendingImports[0];
+  let a = item.artist, s = item.song;
+  if (!s) { const p = parseTitleClient(item.title); a = a || p.artist; s = p.song; }
+  $('modal-search').classList.remove('hidden');
+  switchTab('manual');
+  $('manual-artist').value = a || '';
+  $('manual-song').value = s || item.title || '';
+  $('manual-key').value = item.key || '';
+  $('manual-body').value = item.body || '';
+  $('import-url').value = item.source || '';
+  let host = '';
+  try { host = item.source ? new URL(item.source).hostname.replace(/^www\./, '') : ''; } catch (_) {}
+  const st = $('import-url-status');
+  st.className = 'import-status ok';
+  st.textContent = '🔖 Tarayıcıdan geldi' + (host ? ' (' + host + ')' : '') + '. Kontrol edip “Setliste Ekle”ye bas.';
+  pendingImportId = item.id;
+}
 
 function switchTab(which) {
   ['online', 'repertoire', 'manual'].forEach((t) => {
@@ -1235,6 +1335,13 @@ function manualAdd(e) {
   $('manual-body').value = '';
   $('import-url').value = '';
   $('import-url-status').textContent = '';
+  // Bookmarklet içe aktarmasıysa kutudan sil ve bildirimi güncelle
+  if (pendingImportId && sync.room) {
+    const pid = pendingImportId;
+    fetch('/api/inbox/' + encodeURIComponent(sync.room) + '/' + pid, { method: 'DELETE' }).catch(() => {});
+    pendingImports = pendingImports.filter((x) => x.id !== pid);
+    renderImportBanner();
+  }
   closeSearch();
   toast('“' + songName + '” eklendi');
 }
@@ -1354,6 +1461,7 @@ async function addSongFromUrl(result, itemEl) {
 function openSetlists() {
   renderSetlists();
   updateOfflineBtn();
+  renderBookmarklet();
   $('modal-setlists').classList.remove('hidden');
 }
 function closeSetlists() { $('modal-setlists').classList.add('hidden'); }
@@ -2424,6 +2532,7 @@ async function syncConnect() {
     updateSyncUI();
     startPoll();
     startLivePoll();
+    checkInbox();
     toast('Eşitleme açık: ' + room);
   } catch (e) { syncStatus('Bağlanamadı: ' + e.message); }
 }
@@ -2462,8 +2571,10 @@ async function syncPushNow() {
 function startPoll() { stopPoll(); sync.pollTimer = setInterval(syncPoll, 4000); }
 function stopPoll() { if (sync.pollTimer) clearInterval(sync.pollTimer); sync.pollTimer = null; }
 
+let inboxTick = 0;
 async function syncPoll() {
   if (!sync.connected || sync.applyingRemote) return;
+  if ((inboxTick = (inboxTick + 1) % 3) === 0) checkInbox(); // ~12sn'de bir içe aktarma kutusu
   if (sync.pushTimer) return; // gonderilecek yerel degisiklik var -> once o gitsin
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room) + '?revOnly=1');
@@ -2564,6 +2675,7 @@ async function syncResume() {
   updateSyncUI();
   startPoll();
   startLivePoll();
+  checkInbox();
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room));
     const d = await r.json();
@@ -2595,6 +2707,9 @@ $('repertoire-import').addEventListener('click', importRepertoire);
 
 $('btn-pool').addEventListener('click', togglePool);
 $('follow-btn').addEventListener('click', toggleFollow);
+$('import-banner').addEventListener('click', openNextImport);
+// Uygulamaya geri dönünce (bookmarklet'ten sonra) gelen içe aktarmaları kontrol et
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkInbox(); });
 $('btn-setlists').addEventListener('click', openSetlists);
 $('setlists-close').addEventListener('click', closeSetlists);
 $('setlist-form').addEventListener('submit', createSetlist);

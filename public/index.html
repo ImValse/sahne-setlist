@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=38" />
-  <link rel="stylesheet" href="/style.css?v=38" />
+  <link rel="stylesheet" href="/fonts.css?v=39" />
+  <link rel="stylesheet" href="/style.css?v=39" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -41,6 +41,8 @@
     </div>
 
     <div id="filter-bar" class="filter-bar"></div>
+
+    <button id="import-banner" class="import-banner hidden"></button>
 
     <div id="song-list" class="song-list"></div>
 
@@ -246,6 +248,12 @@
       </div>
 
       <div class="sync-box">
+        <div class="sync-title">🔖 Akorlar.com'dan Ekle (bookmarklet)</div>
+        <p class="hint muted">Cloudflare korumalı siteler (akorlar.com) otomatik okunamıyor. Çözüm: telefonun tarayıcısına bir "yer imi" kur; o sitedeyken ona dokununca akoru buraya gönderir, aşağıda ekleme bildirimi çıkar. Kurulum için önce yukarıdan bir <b>grup kodu</b> ile bağlan.</p>
+        <div id="bkm-box" class="bkm-box"></div>
+      </div>
+
+      <div class="sync-box">
         <div class="sync-title">📥 Çevrimdışı Kullanım (sahne öncesi)</div>
         <p class="hint muted">Aktif setteki tüm şarkıların akor & sözlerini şimdiden cihaza indir. Sahnede internet gitse bile şarkılar anında açılır.</p>
         <button id="btn-offline" class="chip">📥 Bu seti indir</button>
@@ -268,7 +276,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v38</b></span>
+        <span class="muted">Sürüm <b id="app-version">v39</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -438,6 +446,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=38"></script>
+  <script src="/app.js?v=39"></script>
 </body>
 </html>

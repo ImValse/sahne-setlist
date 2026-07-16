@@ -484,6 +484,57 @@ app.post('/api/live/:room', (req, res) => {
   res.json({ rev: liveStore[room].rev });
 });
 
+/* ==========================================================================
+ * İÇE AKTARMA KUTUSU (bookmarklet) — telefon tarayıcısında akorlar.com gibi
+ * Cloudflare korumalı sayfalardaki akoru çekip grup koduna gönderir; uygulama
+ * bu kutuyu kontrol edip şarkıyı ekler. CORS açık (bookmarklet başka origin'den
+ * çağırır). Bellekte, geçici (grup başına en fazla 20 öğe).
+ * ========================================================================== */
+const inboxStore = {};
+function setCors(res) {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+}
+app.options('/api/inbox/:room', (_req, res) => { setCors(res); res.sendStatus(204); });
+app.options('/api/inbox/:room/:id', (_req, res) => { setCors(res); res.sendStatus(204); });
+app.post('/api/inbox/:room', (req, res) => {
+  setCors(res);
+  const room = req.params.room;
+  if (!validRoom(room)) return res.status(400).json({ error: 'Geçersiz kod.' });
+  const b = req.body || {};
+  const body = String(b.body || '').replace(/\r/g, '').slice(0, 20000).trim();
+  if (body.replace(/\s/g, '').length < 20) return res.status(400).json({ error: 'Sayfada akor/söz bulunamadı.' });
+  const item = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: String(b.title || '').slice(0, 200),
+    artist: String(b.artist || '').slice(0, 120),
+    song: String(b.song || '').slice(0, 160),
+    key: String(b.key || '').slice(0, 12),
+    body,
+    source: String(b.source || '').slice(0, 500),
+    ts: Date.now(),
+  };
+  const arr = inboxStore[room] || (inboxStore[room] = []);
+  arr.push(item);
+  while (arr.length > 20) arr.shift();
+  res.json({ ok: true, n: arr.length });
+});
+app.get('/api/inbox/:room', (req, res) => {
+  setCors(res);
+  const room = req.params.room;
+  if (!validRoom(room)) return res.status(400).json({ error: 'Geçersiz kod.' });
+  res.json({ items: inboxStore[room] || [] });
+});
+app.delete('/api/inbox/:room/:id', (req, res) => {
+  setCors(res);
+  const room = req.params.room;
+  if (!validRoom(room)) return res.status(400).json({ error: 'Geçersiz kod.' });
+  const arr = inboxStore[room] || [];
+  inboxStore[room] = arr.filter((x) => x.id !== req.params.id);
+  res.json({ ok: true });
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
