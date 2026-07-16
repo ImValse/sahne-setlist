@@ -408,6 +408,27 @@ app.get('/api/bpm', async (req, res) => {
   }
 });
 
+// Canlı "şu an bu şarkıdayız" konumu (takip/oto-geçiş için) — bellekte, geçici
+const liveStore = {};
+app.get('/api/live/:room', (req, res) => {
+  const room = req.params.room;
+  if (!validRoom(room)) return res.status(400).json({ error: 'Geçersiz kod.' });
+  const r = liveStore[room] || { rev: 0 };
+  res.json({ rev: r.rev, songId: r.songId || null, setlistId: r.setlistId || null });
+});
+app.post('/api/live/:room', (req, res) => {
+  const room = req.params.room;
+  if (!validRoom(room)) return res.status(400).json({ error: 'Geçersiz kod.' });
+  const cur = liveStore[room] || { rev: 0 };
+  liveStore[room] = {
+    rev: cur.rev + 1,
+    songId: (req.body && req.body.songId) || null,
+    setlistId: (req.body && req.body.setlistId) || null,
+    ts: Date.now(),
+  };
+  res.json({ rev: liveStore[room].rev });
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));

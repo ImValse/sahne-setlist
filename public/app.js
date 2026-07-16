@@ -24,6 +24,12 @@ let scrollRAF = null;
 let scrolling = false;
 let lastFrameTs = 0;
 
+// Canlı takip (oto-geçiş): biri şarkı açınca, "Takip açık" olanlar aynı şarkıya geçer
+let follow = localStorage.getItem('follow') === '1';
+let liveRev = 0;
+let applyingLive = false;
+let livePollTimer = null;
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -634,6 +640,7 @@ async function openSong(songId) {
   stopBacking();
   updateBpmUI();
   updateQuickBtn();
+  broadcastLive();   // gruba "su an bu sarkidayiz" bildir (takip edenler gelsin)
 
   // Tembel yukleme: govde bos ama kaynak varsa internetten cek
   if (!song.body && song.source) {
@@ -2073,6 +2080,7 @@ async function syncConnect() {
     localStorage.setItem('sync_rev', String(sync.rev));
     updateSyncUI();
     startPoll();
+    startLivePoll();
     toast('Eşitleme açık: ' + room);
   } catch (e) { syncStatus('Bağlanamadı: ' + e.message); }
 }
@@ -2080,6 +2088,7 @@ async function syncConnect() {
 function syncDisconnect() {
   sync.connected = false;
   stopPoll();
+  stopLivePoll();
   localStorage.removeItem('sync_room');
   updateSyncUI();
   toast('Eşitleme kapatıldı');
@@ -2138,12 +2147,77 @@ async function syncPoll() {
   } catch (_) { /* ag hatasi -> sonraki yoklamada */ }
 }
 
+/* ==========================================================================
+ * CANLI TAKIP / OTO-GECIS  (arkadasin girdigi sarkiya otomatik gecme)
+ *  - broadcastLive(): ben bir sarki acinca "su an bu sarkidayiz" bilgisini
+ *    gruba bildir.
+ *  - livePoll(): "Takip" acikken grubun son konumunu izle, degisince o
+ *    sarkiya otomatik gec.
+ * ========================================================================== */
+async function broadcastLive() {
+  if (!sync.connected || !sync.room || applyingLive || !currentSong) return;
+  try {
+    const res = await fetch('/api/live/' + encodeURIComponent(sync.room), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ songId: currentSong.id, setlistId: state.currentId }),
+    });
+    const d = await res.json();
+    if (res.ok && typeof d.rev === 'number') liveRev = d.rev;
+  } catch (_) { /* ag hatasi -> onemsiz */ }
+}
+
+function startLivePoll() { stopLivePoll(); livePollTimer = setInterval(livePoll, 2000); }
+function stopLivePoll() { if (livePollTimer) clearInterval(livePollTimer); livePollTimer = null; }
+
+async function livePoll() {
+  if (!follow || !sync.connected || !sync.room) return;
+  try {
+    const r = await fetch('/api/live/' + encodeURIComponent(sync.room));
+    const d = await r.json();
+    if (!d || typeof d.rev !== 'number' || d.rev <= liveRev || !d.songId) return;
+    liveRev = d.rev;
+    // Gerekirse once dogru setliste gec
+    if (d.setlistId && state.currentId !== d.setlistId &&
+        state.setlists.some((sl) => sl.id === d.setlistId)) {
+      state.currentId = d.setlistId; saveLocal();
+    }
+    const sl = currentSetlist();
+    const s = sl && sl.songs.find((x) => x.id === d.songId);
+    if (s && (!currentSong || currentSong.id !== d.songId)) {
+      applyingLive = true;
+      await openSong(d.songId);
+      setTimeout(() => { applyingLive = false; }, 80);
+    }
+  } catch (_) { /* ag hatasi -> sonraki yoklamada */ }
+}
+
+function updateFollowBtn() {
+  const b = $('follow-btn');
+  if (!b) return;
+  b.classList.toggle('on', follow);
+  b.textContent = follow ? '🔗 Takip açık' : '🔗 Takip';
+}
+
+function toggleFollow() {
+  follow = !follow;
+  localStorage.setItem('follow', follow ? '1' : '0');
+  updateFollowBtn();
+  if (follow) {
+    if (!sync.connected) { toast('Önce grup kodu ile bağlan (⚙ menü)'); }
+    else { toast('Takip açık — arkadaşının açtığı şarkıya otomatik geçilecek'); livePoll(); }
+  } else {
+    toast('Takip kapalı');
+  }
+}
+
 // Sayfa acilisinda kayitli gruba yeniden baglan
 async function syncResume() {
   if (!sync.room) { updateSyncUI(); return; }
   sync.connected = true;
   updateSyncUI();
   startPoll();
+  startLivePoll();
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room));
     const d = await r.json();
@@ -2173,6 +2247,7 @@ $('repertoire-form').addEventListener('submit', fetchRepertoire);
 $('repertoire-import').addEventListener('click', importRepertoire);
 
 $('btn-pool').addEventListener('click', togglePool);
+$('follow-btn').addEventListener('click', toggleFollow);
 $('btn-setlists').addEventListener('click', openSetlists);
 $('setlists-close').addEventListener('click', closeSetlists);
 $('setlist-form').addEventListener('submit', createSetlist);
@@ -2386,4 +2461,5 @@ async function forceUpdate() {
 ensureRequestPool();
 setupStageDrag();
 renderList();
+updateFollowBtn();
 syncResume();
