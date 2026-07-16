@@ -473,11 +473,25 @@ app.get('/api/websearch', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'En az 2 harf girin.' });
   if (req.query.debug === '1') {
-    const out = {};
     const qq = q + ' akor';
-    for (const [name, eng] of [['bing', searchBing], ['ddg', searchDdg]]) {
-      try { const r = await eng(qq); out[name] = { ok: true, n: r.length, sites: r.slice(0, 8).map((x) => x.site) }; }
-      catch (e) { out[name] = { ok: false, err: e.message }; }
+    const enc = encodeURIComponent(qq);
+    const probes = {
+      'bing-trmkt': 'https://www.bing.com/search?q=' + enc + '&mkt=tr-TR&setlang=tr&cc=TR',
+      'bing-tr-domain': 'https://tr.bing.com/search?q=' + enc + '&setlang=tr',
+      'ddg-lite': 'https://lite.duckduckgo.com/lite/?q=' + enc + '&kl=tr-tr',
+      'yandex': 'https://yandex.com/search/?text=' + enc + '&lr=983',
+      'brave': 'https://search.brave.com/search?q=' + enc,
+      'mojeek': 'https://www.mojeek.com/search?q=' + enc,
+      'searx': 'https://searx.be/search?q=' + enc + '&format=json',
+    };
+    const out = {};
+    for (const [name, url] of Object.entries(probes)) {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'tr-TR,tr;q=0.9', Accept: 'text/html,*/*' }, redirect: 'follow' });
+        const html = await r.text();
+        const hosts = [...html.matchAll(/https?:\/\/([a-z0-9.-]*akor[a-z0-9.-]*|[a-z0-9.-]*repertuar[a-z0-9.-]*)/gi)].map((m) => m[1]).slice(0, 6);
+        out[name] = { status: r.status, len: html.length, akorHosts: [...new Set(hosts)] };
+      } catch (e) { out[name] = { err: e.message }; }
     }
     return res.json(out);
   }
