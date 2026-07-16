@@ -466,8 +466,11 @@ body.stage .stage-nav {
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px;
-  max-height: 85vh;
+  max-height: 88vh;
   display: flex; flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 17px; }
 .search-row { display: flex; gap: 8px; }
