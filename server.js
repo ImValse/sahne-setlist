@@ -472,6 +472,15 @@ async function webSearchChords(query) {
 app.get('/api/websearch', async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.status(400).json({ error: 'En az 2 harf girin.' });
+  if (req.query.debug === '1') {
+    const out = {};
+    const qq = q + ' akor';
+    for (const [name, eng] of [['bing', searchBing], ['ddg', searchDdg]]) {
+      try { const r = await eng(qq); out[name] = { ok: true, n: r.length, sites: r.slice(0, 8).map((x) => x.site) }; }
+      catch (e) { out[name] = { ok: false, err: e.message }; }
+    }
+    return res.json(out);
+  }
   try {
     const results = await webSearchChords(q);
     res.json({ query: q, results });
