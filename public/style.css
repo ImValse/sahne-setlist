@@ -202,6 +202,27 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .step-cell.beat0 { border-color: var(--muted); }
 .edit-actions { display: flex; gap: 8px; padding: 8px 12px 4px; }
 .edit-actions .primary-btn { flex: 1; }
+
+/* Müzik modalı */
+.bpm-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 0 10px; }
+.backing-current { font-size: 12px; padding: 8px 2px; word-break: break-all; }
+.countin-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 12px 2px; }
+.countin-toggle input { width: 20px; height: 20px; }
+.backing-audio { width: 100%; margin-top: 10px; }
+#yt-player { margin-top: 10px; border-radius: 10px; overflow: hidden; min-height: 0; }
+#yt-player:empty { display: none; }
+
+/* 4-3-2-1 sayım katmanı */
+.countin {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.72); pointer-events: none;
+}
+.countin.hidden { display: none; }
+#countin-num {
+  font-size: 42vw; line-height: 1; font-weight: 800; color: #fff;
+  text-shadow: 0 6px 40px rgba(0,0,0,0.6);
+}
 .chip.on { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
 .bpm-slider { width: 110px; accent-color: var(--accent); vertical-align: middle; }
 

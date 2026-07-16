@@ -597,7 +597,9 @@ async function openSong(songId) {
   startSongTimer();
   requestWakeLock();
   stopRhythm();
+  stopBacking();
   updateBpmUI();
+  updateQuickBtn();
 
   // Tembel yukleme: govde bos ama kaynak varsa internetten cek
   if (!song.body && song.source) {
@@ -648,6 +650,7 @@ function updateNav() {
 }
 
 let viewMode = localStorage.getItem('sahne_viewmode') || 'both';
+if (viewMode === 'chords') viewMode = 'both';   // Akor modu üst çubuktan kaldırıldı
 function paintSong() {
   if (!currentSong) return;
   const semi = currentSong.transpose || 0;
@@ -771,36 +774,14 @@ function fitToWidth() {
   applyFont();
 }
 
-/* ---------- Otomatik kaydirma ---------- */
-function startScroll() {
-  scrolling = true;
-  $('scroll-toggle').textContent = '⏸ Durdur';
-  $('scroll-toggle').classList.add('on');
-  lastFrameTs = 0;
-  const box = $('view-song');
-  const step = (ts) => {
-    if (!scrolling) return;
-    if (!lastFrameTs) lastFrameTs = ts;
-    const dt = (ts - lastFrameTs) / 1000;
-    lastFrameTs = ts;
-    const speed = parseInt($('scroll-speed').value, 10); // 1..10
-    box.scrollTop += speed * 14 * dt; // px/sn
-    if (box.scrollTop + box.clientHeight >= box.scrollHeight - 1) {
-      stopScroll();
-      return;
-    }
-    scrollRAF = requestAnimationFrame(step);
-  };
-  scrollRAF = requestAnimationFrame(step);
-}
+/* ---------- Otomatik kaydirma (üst çubuktan kaldırıldı; kod güvenli tutuldu) ---------- */
+function startScroll() { /* devre dışı */ }
 function stopScroll() {
   scrolling = false;
   if (scrollRAF) cancelAnimationFrame(scrollRAF);
   scrollRAF = null;
-  $('scroll-toggle').textContent = '▶ Kaydır';
-  $('scroll-toggle').classList.remove('on');
 }
-function toggleScroll() { scrolling ? stopScroll() : startScroll(); }
+function toggleScroll() { /* devre dışı */ }
 
 /* ==========================================================================
  * ARAMA / EKLEME
@@ -1214,6 +1195,7 @@ function showList() {
   stopScroll();
   stopSongTimer();
   stopRhythm();
+  stopBacking();
   exitStage();
   releaseWakeLock();
   $('view-song').classList.add('hidden');
@@ -1437,7 +1419,8 @@ function flashRhythmBtn(t) {
   const delay = Math.max(0, (t - audioCtx.currentTime) * 1000);
   setTimeout(() => {
     if (!rhythmPlaying) return;
-    const b = $('rhythm-btn');
+    const b = $('play-quick');
+    if (!b) return;
     b.classList.add('beat');
     setTimeout(() => b.classList.remove('beat'), 90);
   }, delay);
@@ -1510,7 +1493,7 @@ function stopRhythm() {
   updateRhythmBtn();
   updateQuickBtn();
   updateBpmUI();
-  if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
+  if (!$('modal-music').classList.contains('hidden')) renderRhythmList();
 }
 // Davulu bir bitiş fill'iyle (ba-dum-tsss) sonlandır
 function rhythmFinal() {
@@ -1524,7 +1507,7 @@ function rhythmFinal() {
   liveBpm = null;
   updateRhythmBtn();
   updateQuickBtn();
-  if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
+  if (!$('modal-music').classList.contains('hidden')) renderRhythmList();
 }
 
 /* ---------- Kademeli yavaşlatma (ritardando) — tek dokunuş aç/kapa ---------- */
@@ -1551,29 +1534,141 @@ function toggleSlow() { slowTimer ? stopSlow() : startSlow(); }
 // BPM'i yarıya / iki katına (yarı-çift tempo düzeltmesi)
 function halveBpm() { setBpm(Math.round(effectiveBpm() / 2)); }
 function doubleBpm() { setBpm(Math.round(effectiveBpm() * 2)); }
-function updateRhythmBtn() {
-  const b = $('rhythm-btn');
-  if (rhythmPlaying && activePattern) { b.textContent = '🥁 ' + activePattern.name + ' ●'; b.classList.add('on'); }
-  else { b.textContent = '🥁 Ritim menüsü'; b.classList.remove('on', 'beat'); }
-}
-// Kontrollerdeki hızlı-çal düğmesi (şarkıya kaydedilmiş davulu tek dokunuşla)
+function updateRhythmBtn() { updateQuickBtn(); }   // geriye dönük uyum
+// Kontrollerdeki ▶ hızlı-çal düğmesi (şarkıya kaydedilmiş altyapı veya davul)
 function updateQuickBtn() {
-  const b = $('rhythm-quick');
-  const id = currentSong && currentSong.rhythm;
-  const pat = id && getRhythm(id);
-  if (!pat) { b.classList.add('hidden'); return; }
+  const b = $('play-quick');
+  if (!b) return;
+  const hasBacking = !!(currentSong && currentSong.backing);
+  const rid = currentSong && currentSong.rhythm;
+  const rpat = rid && getRhythm(rid);
+  if (!hasBacking && !rpat) { b.classList.add('hidden'); return; }
   b.classList.remove('hidden');
-  const thisPlaying = rhythmPlaying && activePattern && activePattern.id === id;
-  b.textContent = (thisPlaying ? '⏸ ' : '▶ ') + pat.name;
-  b.classList.toggle('on', thisPlaying);
+  if (hasBacking) {
+    b.textContent = backingPlaying ? '⏸ Altyapı' : '▶ Altyapı';
+    b.classList.toggle('on', backingPlaying);
+  } else {
+    const thisPlaying = rhythmPlaying && activePattern && activePattern.id === rid;
+    b.textContent = (thisPlaying ? '⏸ ' : '▶ ') + rpat.name;
+    b.classList.toggle('on', thisPlaying);
+  }
 }
-function playSavedRhythm() {
+// ▶ düğmesi: altyapı öncelikli, yoksa kayıtlı davul
+function playSaved() {
+  if (currentSong && currentSong.backing) {
+    if (backingPlaying) stopBacking(); else playBacking();
+    return;
+  }
   const id = currentSong && currentSong.rhythm;
   if (!id) return;
   if (rhythmPlaying && activePattern && activePattern.id === id) { stopRhythm(); return; }
   const pat = getRhythm(id);
   if (!pat) { toast('Kayıtlı davul bulunamadı'); return; }
-  if (playPattern(pat)) { updateRhythmBtn(); updateQuickBtn(); }
+  if (playPattern(pat)) updateQuickBtn();
+}
+
+/* ==========================================================================
+ * ALTYAPI (YouTube linki veya doğrudan ses linki) + 4-3-2-1 sayım
+ * ========================================================================== */
+let backingPlaying = false;
+let ytPlayer = null;
+let ytReady = false;
+function loadYT() {
+  if (window.YT && window.YT.Player) { ytReady = true; return; }
+  if (document.getElementById('yt-api')) return;
+  const s = document.createElement('script');
+  s.id = 'yt-api';
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+  window.onYouTubeIframeAPIReady = () => { ytReady = true; };
+}
+function ytId(url) {
+  const m = String(url || '').match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+function ensureYtPlayer(cb) {
+  if (ytPlayer) { cb(); return; }
+  if (!ytReady || !window.YT || !window.YT.Player) { setTimeout(() => ensureYtPlayer(cb), 300); return; }
+  ytPlayer = new YT.Player('yt-player', {
+    height: '200', width: '100%',
+    playerVars: { playsinline: 1, controls: 1 },
+    events: {
+      onReady: () => cb(),
+      onStateChange: (e) => {
+        // 0 = ended, 2 = paused, 1 = playing
+        if (e.data === YT.PlayerState.ENDED || e.data === YT.PlayerState.PAUSED) { backingPlaying = false; updateQuickBtn(); }
+        else if (e.data === YT.PlayerState.PLAYING) { backingPlaying = true; updateQuickBtn(); }
+      },
+    },
+  });
+}
+// 4-3-2-1 sayım (kapalıysa hemen döner)
+function countInThen(done) {
+  const on = $('countin-toggle') ? $('countin-toggle').checked : true;
+  if (!on) { done(); return; }
+  ensureAudio();
+  const beat = 60 / effectiveBpm();
+  const el = $('countin'), num = $('countin-num');
+  el.classList.remove('hidden');
+  let n = 4;
+  const step = () => {
+    if (n === 0) { el.classList.add('hidden'); done(); return; }
+    num.textContent = n;
+    if (audioCtx) { const t = audioCtx.currentTime + 0.01; if (n === 1) playKick(t); else playHat(t); }
+    n--;
+    setTimeout(step, beat * 1000);
+  };
+  step();
+}
+function playBacking() {
+  const url = currentSong && currentSong.backing;
+  if (!url) { toast('Bu şarkıda altyapı yok'); return; }
+  stopRhythm();
+  countInThen(() => {
+    const id = ytId(url);
+    if (id) {
+      $('backing-audio').classList.add('hidden');
+      ensureYtPlayer(() => { ytPlayer.loadVideoById(id); ytPlayer.playVideo(); backingPlaying = true; updateQuickBtn(); });
+    } else {
+      const a = $('backing-audio');
+      a.src = url; a.classList.remove('hidden');
+      a.play().then(() => { backingPlaying = true; updateQuickBtn(); })
+        .catch((e) => toast('Altyapı çalınamadı: ' + e.message));
+    }
+  });
+}
+function stopBacking() {
+  backingPlaying = false;
+  try { if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); } catch (_) {}
+  const a = $('backing-audio'); if (a) a.pause();
+  updateQuickBtn();
+}
+function saveBacking(e) {
+  e.preventDefault();
+  const url = $('backing-url').value.trim();
+  if (!url) return;
+  if (!currentSong) return;
+  currentSong.backing = url;
+  saveState();
+  updateBackingUI();
+  updateQuickBtn();
+  toast('Altyapı bu şarkıya kaydedildi');
+}
+function clearBacking() {
+  if (!currentSong) return;
+  stopBacking();
+  delete currentSong.backing;
+  saveState();
+  updateBackingUI();
+  updateQuickBtn();
+  toast('Altyapı kaldırıldı');
+}
+function updateBackingUI() {
+  const url = currentSong && currentSong.backing;
+  $('backing-url').value = url || '';
+  const cur = $('backing-current');
+  if (url) { cur.textContent = 'Kayıtlı: ' + url; cur.classList.remove('muted'); }
+  else { cur.textContent = 'Bu şarkıda kayıtlı altyapı yok'; cur.classList.add('muted'); }
 }
 function saveRhythmToSong() {
   if (!currentSong) return;
@@ -1585,13 +1680,22 @@ function saveRhythmToSong() {
   toast('Bu şarkıya kaydedildi: ' + activePattern.name);
 }
 
-/* ---------- Ritim menüsü ---------- */
-function openRhythmSheet() {
-  $('rhythm-bpm').textContent = (currentSong && currentSong.bpm) || $('bpm-slider').value;
+/* ---------- Müzik menüsü (Davul + Altyapı) ---------- */
+function openMusic(tab) {
+  updateBpmUI();
   renderRhythmList();
-  $('sheet-rhythm').classList.remove('hidden');
+  updateBackingUI();
+  switchMusicTab(tab || 'drum');
+  $('modal-music').classList.remove('hidden');
 }
-function closeRhythmSheet() { $('sheet-rhythm').classList.add('hidden'); }
+function closeMusic() { $('modal-music').classList.add('hidden'); }
+function switchMusicTab(which) {
+  $('mtab-drum').classList.toggle('active', which === 'drum');
+  $('mtab-backing').classList.toggle('active', which === 'backing');
+  $('mpane-drum').classList.toggle('hidden', which !== 'drum');
+  $('mpane-backing').classList.toggle('hidden', which !== 'backing');
+  if (which === 'backing') loadYT();
+}
 function renderRhythmList() {
   const box = $('rhythm-list');
   if (!box) return;
@@ -1912,8 +2016,6 @@ document.querySelectorAll('.sortchip').forEach((chip) => {
 window.addEventListener('resize', () => {
   if (!$('view-song').classList.contains('hidden')) fitToWidth();
 });
-$('scroll-toggle').addEventListener('click', toggleScroll);
-$('view-song').addEventListener('touchstart', () => { if (scrolling) stopScroll(); }, { passive: true });
 
 $('song-move-up').addEventListener('click', () => { moveSong(-1); closeSongSheet(); });
 $('song-move-down').addEventListener('click', () => { moveSong(1); closeSongSheet(); });
@@ -1939,8 +2041,12 @@ $('stage-font-down').addEventListener('click', () => changeFont(-2));
 $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
-$('rhythm-btn').addEventListener('click', openRhythmSheet);
-$('rhythm-quick').addEventListener('click', playSavedRhythm);
+// Müzik menüsü
+$('music-btn').addEventListener('click', () => openMusic('drum'));
+$('music-close').addEventListener('click', closeMusic);
+$('mtab-drum').addEventListener('click', () => switchMusicTab('drum'));
+$('mtab-backing').addEventListener('click', () => switchMusicTab('backing'));
+$('play-quick').addEventListener('click', playSaved);
 $('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
 $('bpm-tap').addEventListener('click', bpmTap);
 $('bpm-find').addEventListener('click', findBpmForSong);
@@ -1949,15 +2055,22 @@ $('rhythm-stop').addEventListener('click', stopRhythm);
 $('rhythm-save-song').addEventListener('click', saveRhythmToSong);
 $('rhythm-final').addEventListener('click', rhythmFinal);
 $('rhythm-final-2').addEventListener('click', rhythmFinal);
-
 $('bpm-slow').addEventListener('click', toggleSlow);   // tek dokunuş aç/kapa
 $('bpm-half').addEventListener('click', halveBpm);
 $('bpm-double').addEventListener('click', doubleBpm);
-$('rhythm-close').addEventListener('click', closeRhythmSheet);
 $('rhythm-new').addEventListener('click', openRhythmEditor);
 $('rhythm-preview').addEventListener('click', previewRhythmEdit);
 $('rhythm-save').addEventListener('click', saveRhythmEdit);
 $('rhythm-edit-cancel').addEventListener('click', closeRhythmEditor);
+
+// Altyapı
+$('backing-form').addEventListener('submit', saveBacking);
+$('backing-play').addEventListener('click', playBacking);
+$('backing-stop').addEventListener('click', stopBacking);
+$('backing-clear').addEventListener('click', clearBacking);
+const _ci = $('countin-toggle');
+_ci.checked = localStorage.getItem('countin') !== '0';
+_ci.addEventListener('change', () => localStorage.setItem('countin', _ci.checked ? '1' : '0'));
 
 // Etiket menüsü
 $('label-segue').addEventListener('click', toggleSegue);
@@ -1970,7 +2083,7 @@ $('song-filter').addEventListener('input', (e) => { filterText = e.target.value;
 // Modal arkaplanina tiklayinca kapat
 [['modal-search', closeSearch], ['modal-setlists', closeSetlists], ['sheet-song', closeSongSheet],
  ['modal-edit', closeEdit], ['sheet-copy', closeCopy], ['sheet-label', closeLabel], ['sheet-genre', closeGenreOrder],
- ['sheet-rhythm', closeRhythmSheet], ['sheet-rhythm-edit', closeRhythmEditor]]
+ ['modal-music', closeMusic], ['sheet-rhythm-edit', closeRhythmEditor]]
   .forEach(([id, fn]) => {
     $(id).addEventListener('click', (e) => { if (e.target.id === id) fn(); });
   });

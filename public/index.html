@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=24" />
-  <link rel="stylesheet" href="/style.css?v=24" />
+  <link rel="stylesheet" href="/fonts.css?v=25" />
+  <link rel="stylesheet" href="/style.css?v=25" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -75,32 +75,19 @@
         <button id="font-fit" class="chip" title="Ekrana sığdır">↔ Sığdır</button>
       </div>
       <div class="ctrl-group">
-        <button id="scroll-toggle" class="chip scroll-chip">▶ Kaydır</button>
-        <input id="scroll-speed" class="speed" type="range" min="1" max="10" value="4" />
-      </div>
-      <div class="ctrl-group">
         <span class="ctrl-label">Görünüm</span>
         <button class="viewchip active" data-view="both">İkisi</button>
         <button class="viewchip" data-view="lyrics">Söz</button>
-        <button class="viewchip" data-view="chords">Akor</button>
       </div>
       <div class="ctrl-group">
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
       </div>
       <div class="ctrl-group">
-        <span class="ctrl-label">Davul</span>
-        <button id="rhythm-quick" class="chip hidden">▶ Davul</button>
-        <button id="rhythm-btn" class="chip">🥁 Ritim menüsü</button>
-        <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
-        <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM</button>
-        <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
-        <span id="bpm-val" class="tr-value">100</span>
-        <button id="bpm-half" class="round-btn" title="BPM'i yarıya indir">÷2</button>
-        <button id="bpm-double" class="round-btn" title="BPM'i iki katına çıkar">×2</button>
-        <button id="bpm-slow" class="chip" title="Dokun: kademeli yavaşlat · tekrar dokun: durdur">🐢 Yavaşlat</button>
+        <span class="ctrl-label">Müzik</span>
+        <button id="play-quick" class="chip hidden">▶</button>
+        <button id="music-btn" class="chip">🎵 Menü</button>
+        <button id="bpm-slow" class="chip" title="Dokun: kademeli yavaşlat · tekrar: durdur">🐢 Yavaşlat</button>
         <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
-      </div>
-      <div class="ctrl-group">
         <button id="stage-mode" class="chip">🎬 Sahne</button>
       </div>
     </div>
@@ -240,7 +227,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v24</b></span>
+        <span class="muted">Sürüm <b id="app-version">v25</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -296,22 +283,60 @@
     </div>
   </div>
 
-  <!-- ================= DAVUL RİTMİ (menü) ================= -->
-  <div id="sheet-rhythm" class="sheet hidden">
-    <div class="sheet-card">
-      <div class="sheet-head-row">
-        <div class="sheet-title">🥁 Davul Ritmi (tempo: <span id="rhythm-bpm">—</span> BPM)</div>
-        <div style="display:flex;gap:6px">
-          <button id="rhythm-final-2" class="chip">🎬 Final</button>
-          <button id="rhythm-stop" class="chip">⏹ Durdur</button>
-        </div>
+  <!-- ================= MÜZİK (Davul + Altyapı) ================= -->
+  <div id="modal-music" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><b>🎵 Müzik</b><button id="music-close" class="icon-btn">✕</button></div>
+      <div class="tabs">
+        <button id="mtab-drum" class="tab active">🥁 Davul</button>
+        <button id="mtab-backing" class="tab">🎵 Altyapı</button>
       </div>
-      <div id="rhythm-list" class="rhythm-list"></div>
-      <button id="rhythm-save-song" class="sheet-btn">💾 Çalan ritmi bu şarkıya kaydet</button>
-      <button id="rhythm-new" class="sheet-btn">＋ Yeni ritim oluştur</button>
-      <button id="rhythm-close" class="sheet-btn cancel">Kapat</button>
+
+      <!-- DAVUL -->
+      <div id="mpane-drum" class="pane">
+        <div class="bpm-row">
+          <span class="ctrl-label">Tempo</span>
+          <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
+          <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM</button>
+          <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
+          <span id="bpm-val" class="tr-value">100</span>
+          <button id="bpm-half" class="round-btn" title="Yarıya indir">÷2</button>
+          <button id="bpm-double" class="round-btn" title="İki katına">×2</button>
+        </div>
+        <div class="sheet-head-row">
+          <span class="hint muted">Ritmi dinle → bu şarkıya kaydet</span>
+          <div style="display:flex;gap:6px">
+            <button id="rhythm-final-2" class="chip">🎬 Final</button>
+            <button id="rhythm-stop" class="chip">⏹ Durdur</button>
+          </div>
+        </div>
+        <div id="rhythm-list" class="rhythm-list"></div>
+        <button id="rhythm-save-song" class="sheet-btn">💾 Çalan ritmi bu şarkıya kaydet</button>
+        <button id="rhythm-new" class="sheet-btn">＋ Yeni ritim oluştur</button>
+      </div>
+
+      <!-- ALTYAPI -->
+      <div id="mpane-backing" class="pane hidden">
+        <p class="hint muted">Şarkının altyapısını yapıştır (YouTube linki ya da doğrudan ses/mp3 linki), bu şarkıya kaydet. Çalınca ekranda 4-3-2-1 sayar (aşağıdan kapatabilirsin). Not: link kaydedilir ve oradan çalınır (dosya indirilmez).</p>
+        <form id="backing-form" class="search-row">
+          <input id="backing-url" type="url" placeholder="YouTube linki ya da ses dosyası linki…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Kaydet</button>
+        </form>
+        <div id="backing-current" class="backing-current muted">Bu şarkıda kayıtlı altyapı yok</div>
+        <div class="bpm-row">
+          <button id="backing-play" class="primary-btn">▶ Altyapıyı çal</button>
+          <button id="backing-stop" class="chip">⏹ Durdur</button>
+          <button id="backing-clear" class="chip">🗑 Kaldır</button>
+        </div>
+        <label class="countin-toggle"><input type="checkbox" id="countin-toggle" checked /> Başlamadan önce 4-3-2-1 say</label>
+        <div id="yt-player"></div>
+        <audio id="backing-audio" class="backing-audio hidden" controls></audio>
+      </div>
     </div>
   </div>
+
+  <!-- Sayım (count-in) -->
+  <div id="countin" class="countin hidden"><span id="countin-num">4</span></div>
 
   <!-- ================= RİTİM EDİTÖRÜ (16 adım) ================= -->
   <div id="sheet-rhythm-edit" class="sheet hidden">
@@ -348,6 +373,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=24"></script>
+  <script src="/app.js?v=25"></script>
 </body>
 </html>
