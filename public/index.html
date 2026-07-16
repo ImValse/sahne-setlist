@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=26" />
-  <link rel="stylesheet" href="/style.css?v=26" />
+  <link rel="stylesheet" href="/fonts.css?v=27" />
+  <link rel="stylesheet" href="/style.css?v=27" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -227,7 +227,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v26</b></span>
+        <span class="muted">Sürüm <b id="app-version">v27</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -296,12 +296,29 @@
       <div id="mpane-drum" class="pane">
         <div class="bpm-row">
           <span class="ctrl-label">Tempo</span>
+          <button id="bpm-down5" class="round-btn">−5</button>
+          <button id="bpm-down1" class="round-btn">−1</button>
+          <span id="bpm-val" class="tr-value bpm-big">100</span>
+          <button id="bpm-up1" class="round-btn">+1</button>
+          <button id="bpm-up5" class="round-btn">+5</button>
+          <span class="muted">BPM</span>
+        </div>
+        <div class="bpm-row">
           <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
-          <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM</button>
-          <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
-          <span id="bpm-val" class="tr-value">100</span>
+          <button id="bpm-find" class="chip" title="İnternetten BPM bul">🔎 BPM bul</button>
           <button id="bpm-half" class="round-btn" title="Yarıya indir">÷2</button>
           <button id="bpm-double" class="round-btn" title="İki katına">×2</button>
+        </div>
+        <div class="bpm-row">
+          <span class="ctrl-label">Final sesi</span>
+          <select id="final-style" class="manual-select" style="flex:1;margin:0">
+            <option value="roll">Snare roll + crash</option>
+            <option value="badumtss">Ba-dum-tss</option>
+            <option value="crash">Sadece crash (zil)</option>
+            <option value="tomfill">Tom fill + crash</option>
+            <option value="bigcrash">Büyük vuruş (kick+snare+crash)</option>
+          </select>
+          <button id="final-preview" class="chip">▶ Dinle</button>
         </div>
         <div class="sheet-head-row">
           <span class="hint muted">Ritmi dinle → bu şarkıya kaydet</span>
@@ -378,6 +395,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=26"></script>
+  <script src="/app.js?v=27"></script>
 </body>
 </html>

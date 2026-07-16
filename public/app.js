@@ -1307,7 +1307,7 @@ let activePattern = null;
 // O an geçerli tempo (yavaşlatma varsa onu, yoksa şarkının BPM'i)
 function effectiveBpm() {
   if (liveBpm != null) return liveBpm;
-  return (currentSong && currentSong.bpm) || parseInt($('bpm-slider').value, 10) || 100;
+  return (currentSong && currentSong.bpm) || 100;
 }
 
 function ensureAudio() {
@@ -1402,16 +1402,48 @@ function playCrash(t, vol) {
   src.connect(hp); hp.connect(g); g.connect(ctx.destination);
   src.start(t); src.stop(t + 1.4);
 }
-// Bitiş fill'i: kısa snare roll (crescendo) + son kick + uzun crash (ba-dum-tsss)
+// Tom: alçalan sinüs (davul geçişi)
+function playTom(t, freq, vol) {
+  vol = vol == null ? 1 : vol;
+  const ctx = audioCtx;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t + 0.18);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.8 * vol, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.3);
+}
+function finalStyle() {
+  const el = $('final-style');
+  return (el && el.value) || localStorage.getItem('final_style') || 'roll';
+}
+// Bitiş fill'i — seçilen stile göre
 function playEndingFill() {
   if (!ensureAudio()) return;
   const bpm = effectiveBpm();
-  const six = (60 / bpm) / 4;      // onaltılık
+  const eighth = (60 / bpm) / 2;
+  const six = (60 / bpm) / 4;
   let t = audioCtx.currentTime + 0.04;
-  const rolls = 6;
-  for (let i = 0; i < rolls; i++) { playSnare(t, 0.35 + i * (0.55 / rolls)); t += six; }
-  playKick(t);
-  playCrash(t);                    // son "tsss"
+  const style = finalStyle();
+  if (style === 'crash') {
+    playCrash(t);
+  } else if (style === 'badumtss') {
+    playKick(t); t += eighth;
+    playSnare(t, 0.85); t += eighth;
+    playCrash(t);
+  } else if (style === 'tomfill') {
+    [200, 160, 120, 90].forEach((f) => { playTom(t, f, 0.9); t += six; });
+    playKick(t); playCrash(t);
+  } else if (style === 'bigcrash') {
+    playKick(t); playSnare(t, 0.7); playCrash(t);
+  } else { // roll
+    for (let i = 0; i < 6; i++) { playSnare(t, 0.35 + i * 0.09); t += six; }
+    playKick(t); playCrash(t);
+  }
 }
 
 // Davul düğmesini vuruşta yak (görsel darbe)
@@ -1464,7 +1496,7 @@ function rhythmScheduler() {
   }
 }
 function playPattern(pat) {
-  if (currentSong && !currentSong.bpm) setBpm($('bpm-slider').value);
+  if (currentSong && !currentSong.bpm) setBpm(effectiveBpm());
   if (!(currentSong && currentSong.bpm)) return false;
   if (!ensureAudio()) { toast('Bu cihaz ses üretimini desteklemiyor'); return false; }
   activePattern = pat;
@@ -1837,19 +1869,15 @@ function saveRhythmEdit() {
   toast('“' + name + '” kaydedildi');
 }
 
-/* ---------- BPM: şarkı içinde slider + tap ---------- */
-function updateBpmUI() {
-  const bpm = effectiveBpm();
-  $('bpm-slider').value = bpm;
-  $('bpm-val').textContent = bpm;
-}
+/* ---------- BPM: −/+ düğmeleri + tap ---------- */
+function updateBpmUI() { $('bpm-val').textContent = effectiveBpm(); }
 function setBpm(v) {
   v = Math.max(40, Math.min(240, parseInt(v, 10) || 100));
-  liveBpm = null;                     // slider/tap = kalıcı tempo, yavaşlatmayı sıfırla
+  liveBpm = null;                     // düğme/tap = kalıcı tempo, yavaşlatmayı sıfırla
   if (currentSong) { currentSong.bpm = v; saveState(); }
-  $('bpm-slider').value = v;
   $('bpm-val').textContent = v;
 }
+function changeBpm(d) { setBpm(effectiveBpm() + d); }
 
 // Tempoya vur (tap tempo)
 let tapTimes = [];
@@ -2112,8 +2140,18 @@ $('music-close').addEventListener('click', closeMusic);
 $('mtab-drum').addEventListener('click', () => switchMusicTab('drum'));
 $('mtab-backing').addEventListener('click', () => switchMusicTab('backing'));
 $('play-quick').addEventListener('click', playSaved);
-$('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
+$('bpm-down5').addEventListener('click', () => changeBpm(-5));
+$('bpm-down1').addEventListener('click', () => changeBpm(-1));
+$('bpm-up1').addEventListener('click', () => changeBpm(1));
+$('bpm-up5').addEventListener('click', () => changeBpm(5));
 $('bpm-tap').addEventListener('click', bpmTap);
+// Final sesi seçimi (hatırlanır) + önizleme
+(() => {
+  const sel = $('final-style');
+  sel.value = localStorage.getItem('final_style') || 'roll';
+  sel.addEventListener('change', () => localStorage.setItem('final_style', sel.value));
+  $('final-preview').addEventListener('click', () => { ensureAudio(); playEndingFill(); });
+})();
 $('bpm-find').addEventListener('click', findBpmForSong);
 $('edit-tap').addEventListener('click', tapTempo);
 $('rhythm-stop').addEventListener('click', stopRhythm);
