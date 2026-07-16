@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=20" />
-  <link rel="stylesheet" href="/style.css?v=20" />
+  <link rel="stylesheet" href="/fonts.css?v=21" />
+  <link rel="stylesheet" href="/style.css?v=21" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -89,7 +89,8 @@
       </div>
       <div class="ctrl-group">
         <span class="ctrl-label">Davul</span>
-        <button id="rhythm-btn" class="chip">🥁 Davul</button>
+        <button id="rhythm-quick" class="chip hidden">▶ Davul</button>
+        <button id="rhythm-btn" class="chip">🥁 Ritim menüsü</button>
         <button id="bpm-tap" class="round-btn" title="Tempoya vur">TAP</button>
         <input id="bpm-slider" class="speed bpm-slider" type="range" min="40" max="240" value="100" />
         <span id="bpm-val" class="tr-value">100</span>
@@ -234,7 +235,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v20</b></span>
+        <span class="muted">Sürüm <b id="app-version">v21</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -298,6 +299,7 @@
         <button id="rhythm-stop" class="chip">⏹ Durdur</button>
       </div>
       <div id="rhythm-list" class="rhythm-list"></div>
+      <button id="rhythm-save-song" class="sheet-btn">💾 Çalan ritmi bu şarkıya kaydet</button>
       <button id="rhythm-new" class="sheet-btn">＋ Yeni ritim oluştur</button>
       <button id="rhythm-close" class="sheet-btn cancel">Kapat</button>
     </div>
@@ -338,6 +340,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=20"></script>
+  <script src="/app.js?v=21"></script>
 </body>
 </html>

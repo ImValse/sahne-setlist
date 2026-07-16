@@ -1452,9 +1452,9 @@ function playPattern(pat) {
 }
 function playRhythmById(id) {
   const pat = getRhythm(id);
-  if (!pat || !playPattern(pat)) return;
-  if (currentSong) { currentSong.rhythm = id; saveState(); }
+  if (!pat || !playPattern(pat)) return;   // menüde çalmak = önizleme (otomatik kaydetmez)
   updateRhythmBtn();
+  updateQuickBtn();
   renderRhythmList();
 }
 function stopRhythm() {
@@ -1463,12 +1463,41 @@ function stopRhythm() {
   rhythmTimer = null;
   activePattern = null;
   updateRhythmBtn();
+  updateQuickBtn();
   if (!$('sheet-rhythm').classList.contains('hidden')) renderRhythmList();
 }
 function updateRhythmBtn() {
   const b = $('rhythm-btn');
   if (rhythmPlaying && activePattern) { b.textContent = '🥁 ' + activePattern.name + ' ●'; b.classList.add('on'); }
-  else { b.textContent = '🥁 Davul'; b.classList.remove('on', 'beat'); }
+  else { b.textContent = '🥁 Ritim menüsü'; b.classList.remove('on', 'beat'); }
+}
+// Kontrollerdeki hızlı-çal düğmesi (şarkıya kaydedilmiş davulu tek dokunuşla)
+function updateQuickBtn() {
+  const b = $('rhythm-quick');
+  const id = currentSong && currentSong.rhythm;
+  const pat = id && getRhythm(id);
+  if (!pat) { b.classList.add('hidden'); return; }
+  b.classList.remove('hidden');
+  const thisPlaying = rhythmPlaying && activePattern && activePattern.id === id;
+  b.textContent = (thisPlaying ? '⏸ ' : '▶ ') + pat.name;
+  b.classList.toggle('on', thisPlaying);
+}
+function playSavedRhythm() {
+  const id = currentSong && currentSong.rhythm;
+  if (!id) return;
+  if (rhythmPlaying && activePattern && activePattern.id === id) { stopRhythm(); return; }
+  const pat = getRhythm(id);
+  if (!pat) { toast('Kayıtlı davul bulunamadı'); return; }
+  if (playPattern(pat)) { updateRhythmBtn(); updateQuickBtn(); }
+}
+function saveRhythmToSong() {
+  if (!currentSong) return;
+  if (!(rhythmPlaying && activePattern)) { toast('Önce menüden bir ritim çal, sonra kaydet'); return; }
+  currentSong.rhythm = activePattern.id;
+  saveState();
+  updateQuickBtn();
+  renderRhythmList();
+  toast('Bu şarkıya kaydedildi: ' + activePattern.name);
 }
 
 /* ---------- Ritim menüsü ---------- */
@@ -1483,12 +1512,14 @@ function renderRhythmList() {
   if (!box) return;
   box.innerHTML = '';
   const curId = (rhythmPlaying && activePattern) ? activePattern.id : null;
+  const savedId = currentSong && currentSong.rhythm;
   allRhythms().forEach((r) => {
     const row = document.createElement('div');
     row.className = 'rhythm-row' + (r.id === curId ? ' playing' : '');
+    const star = r.id === savedId ? ' <span class="rhythm-star" title="Bu şarkının kayıtlı davulu">⭐</span>' : '';
     row.innerHTML =
       `<span class="rhythm-play">${r.id === curId ? '⏸' : '▶'}</span>
-       <span class="rhythm-name">${escapeHtml(r.name)}</span>
+       <span class="rhythm-name">${escapeHtml(r.name)}${star}</span>
        ${r.custom ? '<button class="rhythm-del" data-del title="Sil">🗑</button>' : ''}`;
     row.addEventListener('click', (e) => {
       if (e.target.closest('[data-del]')) { deleteCustomRhythm(r.id); return; }
@@ -1800,10 +1831,12 @@ $('stage-font-up').addEventListener('click', () => changeFont(2));
 $('stage-tr-down').addEventListener('click', () => setTranspose(-1));
 $('stage-tr-up').addEventListener('click', () => setTranspose(1));
 $('rhythm-btn').addEventListener('click', openRhythmSheet);
+$('rhythm-quick').addEventListener('click', playSavedRhythm);
 $('bpm-slider').addEventListener('input', (e) => setBpm(e.target.value));
 $('bpm-tap').addEventListener('click', bpmTap);
 $('edit-tap').addEventListener('click', tapTempo);
 $('rhythm-stop').addEventListener('click', stopRhythm);
+$('rhythm-save-song').addEventListener('click', saveRhythmToSong);
 $('rhythm-close').addEventListener('click', closeRhythmSheet);
 $('rhythm-new').addEventListener('click', openRhythmEditor);
 $('rhythm-preview').addEventListener('click', previewRhythmEdit);
