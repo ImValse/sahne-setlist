@@ -348,7 +348,7 @@ body.stage .stage-nav {
   background: var(--bg-2);
   border-bottom: 1px solid var(--line);
 }
-.ctrl-group { display: flex; align-items: center; gap: 6px; }
+.ctrl-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ctrl-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
 .round-btn {
   background: var(--bg-3);

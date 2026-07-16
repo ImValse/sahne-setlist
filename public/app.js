@@ -2289,10 +2289,8 @@ $('stage-next').addEventListener('click', () => gotoRelative(1));
 
 $('tr-up').addEventListener('click', () => setTranspose(1));
 $('tr-down').addEventListener('click', () => setTranspose(-1));
-$('tr-reset').addEventListener('click', () => { if (currentSong) { currentSong.transpose = 0; saveState(); paintSong(); updateKeyDisplay(); } });
 $('font-up').addEventListener('click', () => changeFont(2));
 $('font-down').addEventListener('click', () => changeFont(-2));
-$('font-fit').addEventListener('click', fitToWidth);
 
 // Sıralama çipleri
 document.querySelectorAll('.sortchip').forEach((chip) => {
