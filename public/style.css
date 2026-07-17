@@ -730,6 +730,63 @@ body.stage .stage-nav {
 }
 .chordbadge.dim { color: var(--muted); font-weight: 400; }
 
+/* ---------- Prova listesi rozeti ---------- */
+.badge.practice {
+  background: rgba(255, 159, 67, 0.18);
+  border: 1px solid var(--warn, #ff9f43);
+  color: #ff9f43;
+  font-weight: 700;
+}
+
+/* ---------- Sözde ara ---------- */
+.list-filter { display: flex; gap: 8px; align-items: center; }
+.list-filter #song-filter { flex: 1; min-width: 0; }
+.lyric-btn { flex: none; white-space: nowrap; }
+.lyric-results { margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+.lyric-item {
+  text-align: left; width: 100%;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 12px; color: var(--text); cursor: pointer;
+}
+.lyric-item:active { background: var(--bg-3); }
+.lyric-item .li-t { font-weight: 700; font-size: 15px; }
+.lyric-item .li-a { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
+.lyric-item .li-set { color: var(--accent); font-size: 12px; margin-top: 2px; }
+.lyric-item .li-snip { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.35; }
+.lyric-item .li-snip mark { background: rgba(53, 208, 127, 0.30); color: var(--text); border-radius: 3px; padding: 0 2px; }
+
+/* ---------- Nakarat seçici ---------- */
+.chorus-tools { display: flex; gap: 8px; margin: 4px 0 8px; }
+.chorus-lines {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg); padding: 6px; max-height: 52vh; overflow: auto;
+  font-family: "RepSans", monospace; font-size: 15px; line-height: 1.5;
+}
+.chorus-line {
+  white-space: pre-wrap; word-break: break-word;
+  padding: 2px 8px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.chorus-line.chord { color: var(--chord); font-weight: 700; }
+.chorus-line.empty { color: var(--line); cursor: default; text-align: center; }
+.chorus-line.sel { background: rgba(53, 208, 127, 0.20); border-color: var(--ok); }
+.chorus-line:not(.empty):active { background: var(--bg-3); }
+
+/* ---------- Potpuri (nakarat medley) — .stageshare tam ekranı devralır ---------- */
+.potpuri-tools { display: flex; gap: 6px; margin-left: auto; }
+.potpuri-tools .icon-btn { margin-left: 0; }
+#modal-potpuri .ss-top > #potpuri-exit { margin-left: 10px; }
+.potpuri-body { flex: 1; min-height: 0; overflow: auto; margin-top: 10px; }
+.pp-sec { margin-bottom: 18px; }
+.pp-head {
+  font-size: 17px; font-weight: 800; color: var(--accent);
+  border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 6px;
+  cursor: pointer;
+}
+.pp-text { margin: 0; }
+.pp-text.pp-empty { color: var(--muted); font-style: italic; font-family: inherit; }
+.pp-none { color: var(--muted); text-align: center; margin-top: 40px; }
+
 /* ---------- Sıradaki şarkı önizleme şeridi ---------- */
 .next-peek {
   position: fixed;

@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=40" />
-  <link rel="stylesheet" href="/style.css?v=40" />
+  <link rel="stylesheet" href="/fonts.css?v=41" />
+  <link rel="stylesheet" href="/style.css?v=41" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -39,6 +39,7 @@
 
     <div class="list-filter">
       <input id="song-filter" type="search" placeholder="🔎 Bu sette şarkı bul…" autocomplete="off" />
+      <button id="btn-lyric-search" class="chip lyric-btn" title="Tüm repertuarda söz içinde ara">📖 Sözde</button>
     </div>
 
     <div id="filter-bar" class="filter-bar"></div>
@@ -278,7 +279,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v40</b></span>
+        <span class="muted">Sürüm <b id="app-version">v41</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -290,6 +291,8 @@
       <button id="song-stageshare" class="sheet-btn">📺 Ortak Sahne ekranı</button>
       <button id="song-peek-toggle" class="sheet-btn">👁 Sıradaki şeridi: Açık</button>
       <button id="song-edit" class="sheet-btn">✎ Düzenle (akor/söz/süre)</button>
+      <button id="song-chorus-pick" class="sheet-btn">✂️ Nakaratı seç (potpuri için)</button>
+      <button id="song-practice" class="sheet-btn">🎯 Prova listesine ekle</button>
       <button id="song-copy" class="sheet-btn">⧉ Başka setliste ekle</button>
       <button id="song-move-up" class="sheet-btn">↑ Yukarı taşı</button>
       <button id="song-move-down" class="sheet-btn">↓ Aşağı taşı</button>
@@ -334,6 +337,46 @@
       <div id="copy-list"></div>
       <button id="copy-cancel" class="sheet-btn cancel">Vazgeç</button>
     </div>
+  </div>
+
+  <!-- ================= NAKARAT SEÇ (potpuri) ================= -->
+  <div id="modal-chorus" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><b>✂️ Nakaratı Seç</b><button id="chorus-close" class="icon-btn">✕</button></div>
+      <p class="hint muted">Potpuride gösterilecek nakarat satırlarına dokun (akor + söz satırları). Tekrar dokununca kaldırır. Otomatik bulma her şarkıda çalışmaz — asıl olan senin elle seçmen.</p>
+      <div class="chorus-tools">
+        <button id="chorus-auto" class="chip">✨ Otomatik dene</button>
+        <button id="chorus-clear" class="chip">Temizle</button>
+      </div>
+      <div id="chorus-lines" class="chorus-lines"></div>
+      <button id="chorus-save" class="primary-btn manual-submit">Kaydet</button>
+    </div>
+  </div>
+
+  <!-- ================= SÖZDE ARA ================= -->
+  <div id="modal-lyricsearch" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><b>📖 Sözde Ara</b><button id="lyric-close" class="icon-btn">✕</button></div>
+      <p class="hint muted">Tüm setlerdeki <b>indirilmiş</b> şarkıların sözlerinde arar. Sonuca dokun → şarkı açılır.</p>
+      <form id="lyric-form" class="search-row">
+        <input id="lyric-input" type="search" placeholder="Söz parçası yaz (ör. yıllar sonra)" autocomplete="off" />
+        <button type="submit" class="primary-btn">Ara</button>
+      </form>
+      <div id="lyric-results" class="lyric-results"></div>
+    </div>
+  </div>
+
+  <!-- ================= POTPURİ (nakarat medley) ================= -->
+  <div id="modal-potpuri" class="stageshare hidden">
+    <div class="ss-top">
+      <span class="ss-badge">🎉 POTPURİ</span>
+      <div class="potpuri-tools">
+        <button id="potpuri-font-down" class="icon-btn" title="Yazıyı küçült">A−</button>
+        <button id="potpuri-font-up" class="icon-btn" title="Yazıyı büyüt">A+</button>
+      </div>
+      <button id="potpuri-exit" class="icon-btn">✕ Çık</button>
+    </div>
+    <div id="potpuri-body" class="potpuri-body"></div>
   </div>
 
   <!-- ================= MÜZİK (Davul + Altyapı) ================= -->
@@ -448,6 +491,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=40"></script>
+  <script src="/app.js?v=41"></script>
 </body>
 </html>
