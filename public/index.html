@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=39" />
-  <link rel="stylesheet" href="/style.css?v=39" />
+  <link rel="stylesheet" href="/fonts.css?v=40" />
+  <link rel="stylesheet" href="/style.css?v=40" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -32,6 +32,7 @@
       <button class="sortchip active" data-sort="manual">↕ Kendi sıram</button>
       <button class="sortchip" data-sort="stage">🎭 Sahne sırası</button>
       <button class="sortchip" data-sort="chord" title="Şarkıları akor geçişine göre zincirle">🔗 Akor geçişli</button>
+      <button class="sortchip" data-sort="chorus" title="Oyun havaları için: şarkıyı açınca sadece nakaratı göster">🎉 Nakaratlar</button>
       <button class="sortchip" data-sort="artist">Sanatçı A-Z</button>
       <button class="sortchip" data-sort="song">Şarkı A-Z</button>
     </div>
@@ -80,6 +81,7 @@
         <span class="ctrl-label">Görünüm</span>
         <button class="viewchip active" data-view="both">İkisi</button>
         <button class="viewchip" data-view="lyrics">Söz</button>
+        <button id="chorus-chip" class="viewchip" title="Sadece nakaratı göster (oyun havaları için)">🎉 Nakarat</button>
       </div>
       <div class="ctrl-group">
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
@@ -276,7 +278,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v39</b></span>
+        <span class="muted">Sürüm <b id="app-version">v40</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -446,6 +448,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=39"></script>
+  <script src="/app.js?v=40"></script>
 </body>
 </html>

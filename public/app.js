@@ -57,6 +57,10 @@ function saveLocal() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {}
 }
 function saveState() {
+  // Gerçek yerel değişiklik -> içerik zaman damgasını güncelle. Eşitleme
+  // çakışmalarında (özellikle sunucu uyku sonrası rev'i sıfırlarsa) hangi
+  // tarafın daha yeni olduğuna rev yerine BUNA bakarız (bkz. pickNewer).
+  state.updatedAt = Date.now();
   saveLocal();
   if (sync.connected && !sync.applyingRemote) schedulePush();
 }
@@ -198,6 +202,47 @@ function renderBody(body, semi, preferFlat, mode) {
 }
 
 /* ==========================================================================
+ * NAKARAT ÇIKARIMI  — "Sadece nakaratlar" modu (oyun havaları için)
+ *  Şarkının yalnızca koro/nakarat bölümünü döndürür. Önce etiketli bölümü
+ *  ("Nakarat:", "Chorus" vb.) arar; yoksa gövdedeki EN ÇOK TEKRAR EDEN
+ *  paragraf bloğunu seçer (koro genelde birkaç kez tekrarlanır). Bulamazsa ''.
+ * ========================================================================== */
+function extractChorus(body) {
+  if (!body) return '';
+  const lines = body.replace(/\r/g, '').split('\n');
+  const isLbl = (l) => l.trim().length <= 30 &&
+    /(nakarat|nakart|chorus|refran|refr|koro|baglanti)/i.test(trSimplify(l));
+  // 1) Etiketli nakarat bloğu (etiketten sonraki ilk boş satıra kadar)
+  for (let i = 0; i < lines.length; i++) {
+    if (!isLbl(lines[i])) continue;
+    let j = i + 1;
+    while (j < lines.length && lines[j].trim() === '') j++;
+    const blk = [];
+    while (j < lines.length && lines[j].trim() !== '') { blk.push(lines[j]); j++; }
+    if (blk.join('').trim()) return blk.join('\n').trim();
+  }
+  // 2) Etiket yok -> en çok tekrar eden (>=2) paragraf bloğu
+  const blocks = body.replace(/\r/g, '').split(/\n[ \t]*\n/)
+    .map((b) => b.replace(/[ \t]+\n/g, '\n').trim()).filter(Boolean);
+  if (blocks.length < 2) return '';
+  const sig = (b) => b.split('\n').filter((l) => !isChordLine(l))
+    .map((l) => trSimplify(l).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean).join(' | ');
+  const counts = {}, firstBlock = {};
+  blocks.forEach((b) => {
+    const s = sig(b);
+    if (!s || s.length < 8) return;
+    counts[s] = (counts[s] || 0) + 1;
+    if (!(s in firstBlock)) firstBlock[s] = b;
+  });
+  let bestSig = '', best = 0;
+  for (const s in counts) {
+    if (counts[s] >= 2 && s.length > best) { best = s.length; bestSig = s; }
+  }
+  return bestSig ? firstBlock[bestSig] : '';
+}
+
+/* ==========================================================================
  * AKOR GEÇİŞİ  — şarkının ilk/son akoru; "akor geçişli" sıralama için
  * ========================================================================== */
 // Şarkının gövdesinden (transpoze dahil) ilk ve son akoru döndürür
@@ -307,7 +352,7 @@ function generateStageOrder(sl) {
 // Setlist'in gosterim sirasi (secili siralama moduna gore)
 function orderedSongs(sl) {
   const mode = sl.sortMode || 'manual';
-  if (mode === 'manual') return sl.songs;
+  if (mode === 'manual' || mode === 'chorus') return sl.songs;
   if (mode === 'stage') {
     if (!sl.stageOrder || !sl.stageOrder.length) generateStageOrder(sl);
     const byId = {};
@@ -343,7 +388,7 @@ const COLORS = [
   { key: 'red', name: 'Rock', css: '#ff5a5a', tint: 'rgba(255,90,90,0.22)' },
   { key: 'orange', name: 'Türkü', css: '#ff9f43', tint: 'rgba(255,159,67,0.22)' },
   { key: 'purple', name: 'Arabesk', css: '#a066ff', tint: 'rgba(160,102,255,0.22)' },
-  { key: 'gray', name: 'Cover', css: '#8a94a6', tint: 'rgba(138,148,166,0.24)' },
+  { key: 'gray', name: 'Oyun Havası', css: '#8a94a6', tint: 'rgba(138,148,166,0.24)' },
 ];
 function colorCss(key) { const c = COLORS.find((x) => x.key === key); return c ? c.css : ''; }
 function colorName(key) { const c = COLORS.find((x) => x.key === key); return c ? c.name : ''; }
@@ -374,8 +419,13 @@ function guessGenre(artist) {
 }
 
 let filterText = '';
-let filterGenre = '';        // '' = tümü, ya da renk anahtarı
-let filterPlayed = '';       // '' | 'played' | 'unplayed'
+// Filtreler cihazda kalıcı: sayfa yenilenince/geri gelince seçim korunur
+let filterGenre = localStorage.getItem('filterGenre') || '';   // '' = tümü, ya da renk anahtarı
+let filterPlayed = localStorage.getItem('filterPlayed') || ''; // '' | 'played' | 'unplayed'
+function saveFilters() {
+  localStorage.setItem('filterGenre', filterGenre);
+  localStorage.setItem('filterPlayed', filterPlayed);
+}
 
 // Filtre çubuğunu (tür + çalınan/çalınmayan) çizer
 function renderFilters() {
@@ -407,13 +457,13 @@ function renderFilters() {
     bar.appendChild(sh);
   }
 
-  chip('Tümü', !filterGenre && !filterPlayed, () => { filterGenre = ''; filterPlayed = ''; renderList(); });
+  chip('Tümü', !filterGenre && !filterPlayed, () => { filterGenre = ''; filterPlayed = ''; saveFilters(); renderList(); });
   if (anyPlayed) {
-    chip('✓ Çalınan', filterPlayed === 'played', () => { filterPlayed = filterPlayed === 'played' ? '' : 'played'; renderList(); });
-    chip('○ Çalınmayan', filterPlayed === 'unplayed', () => { filterPlayed = filterPlayed === 'unplayed' ? '' : 'unplayed'; renderList(); });
+    chip('✓ Çalınan', filterPlayed === 'played', () => { filterPlayed = filterPlayed === 'played' ? '' : 'played'; saveFilters(); renderList(); });
+    chip('○ Çalınmayan', filterPlayed === 'unplayed', () => { filterPlayed = filterPlayed === 'unplayed' ? '' : 'unplayed'; saveFilters(); renderList(); });
   }
   genres.forEach((g) => {
-    chip(colorName(g), filterGenre === g, () => { filterGenre = filterGenre === g ? '' : g; renderList(); }, colorCss(g));
+    chip(colorName(g), filterGenre === g, () => { filterGenre = filterGenre === g ? '' : g; saveFilters(); renderList(); }, colorCss(g));
   });
   if (anyPlayed) {
     const clr = document.createElement('button');
@@ -443,7 +493,7 @@ function renderList() {
   document.querySelectorAll('.sortchip').forEach((c) =>
     c.classList.toggle('active', c.dataset.sort === mode));
 
-  const draggable = (mode === 'manual' || mode === 'stage');
+  const draggable = (mode === 'manual' || mode === 'stage' || mode === 'chorus');
   const chordMode = mode === 'chord';
   const list = $('song-list');
   list.className = 'song-list' + (draggable ? '' : ' nodrag');
@@ -723,6 +773,7 @@ async function openSong(songId) {
   const song = sl.songs.find((s) => s.id === songId);
   if (!song) return;
   currentSong = song;
+  chorusOnly = (sl.sortMode === 'chorus');   // Nakaratlar modunda otomatik sadece koro
   ensureRhythmAvailable(song);   // eşitlenen özel davulu yerel listeye geri kur
   // 1 dakikadan fazla açık kalırsa otomatik "çalındı" işaretle (elle de tikleyebilirsin)
   clearTimeout(autoPlayTimer);
@@ -910,12 +961,27 @@ async function renderStageShare(song, sl) {
 
 let viewMode = localStorage.getItem('sahne_viewmode') || 'both';
 if (viewMode === 'chords') viewMode = 'both';   // Akor modu üst çubuktan kaldırıldı
+let chorusOnly = false;   // "Sadece nakaratlar": şarkı ekranında yalnız koro
 function paintSong() {
   if (!currentSong) return;
   const semi = currentSong.transpose || 0;
   const preferFlat = /b/.test(currentSong.key || '');
-  $('song-body').innerHTML = renderBody(currentSong.body || '', semi, preferFlat, viewMode);
+  let body = currentSong.body || '';
+  if (chorusOnly) {
+    const ch = extractChorus(body);
+    if (ch) body = ch;   // bulunamazsa tüm gövde gösterilir
+  }
+  $('song-body').innerHTML = renderBody(body, semi, preferFlat, viewMode);
   $('tr-value').textContent = semi;
+  const cc = $('chorus-chip'); if (cc) cc.classList.toggle('active', chorusOnly);
+}
+function toggleChorus() {
+  chorusOnly = !chorusOnly;
+  if (chorusOnly && currentSong && !extractChorus(currentSong.body || '')) {
+    toast('Nakarat otomatik bulunamadı — tüm söz gösteriliyor');
+  }
+  paintSong();
+  fitToWidth();
 }
 function setViewMode(mode) {
   viewMode = mode;
@@ -2571,6 +2637,40 @@ async function syncPushNow() {
 function startPoll() { stopPoll(); sync.pollTimer = setInterval(syncPoll, 4000); }
 function stopPoll() { if (sync.pollTimer) clearInterval(sync.pollTimer); sync.pollTimer = null; }
 
+// İçerik zaman damgasına göre hangi taraf daha güncel? Sunucudaki rev sayacı
+// (Render uykuya dalıp dosyayı silince) sıfırlanabildiği için, karar rev'e
+// DEĞİL data.updatedAt'e dayanır. Böylece eski veriye sahip bir cihaz, yüksek
+// yerel rev'i yüzünden yeni veriyi ezemez. Zaman damgası yoksa (eski veri)
+// eski davranışa (rev karşılaştırması) düşeriz.
+function pickNewer(serverData, serverRev) {
+  const sTs = (serverData && serverData.updatedAt) || 0;
+  const lTs = (state && state.updatedAt) || 0;
+  if (sTs !== lTs) return sTs > lTs ? 'server' : 'local';
+  if (serverRev > sync.rev) return 'server';
+  if (serverRev < sync.rev) return 'local';
+  return 'equal';
+}
+
+// Sunucudan gelen daha yeni durumu bu cihaza uygula (açık şarkıyı koruyarak)
+function applyRemoteState(d) {
+  const openId = currentSong && currentSong.id;
+  sync.applyingRemote = true;
+  state = d.data; sync.rev = d.rev; saveLocal();
+  localStorage.setItem('sync_rev', String(sync.rev));
+  sync.applyingRemote = false;
+  if (!$('view-song').classList.contains('hidden')) {
+    const sl = currentSetlist();
+    const s = sl && sl.songs.find((x) => x.id === openId);
+    if (s) {
+      currentSong = s; ensureRhythmAvailable(s); updateNav(); updateQuickBtn();
+      if (!$('modal-music').classList.contains('hidden')) { renderRhythmList(); renderBackingList(); }
+    } else showList();
+  } else {
+    renderList();
+  }
+  syncStatus('Güncellendi ✓ — grup: ' + sync.room);
+}
+
 let inboxTick = 0;
 async function syncPoll() {
   if (!sync.connected || sync.applyingRemote) return;
@@ -2579,27 +2679,18 @@ async function syncPoll() {
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room) + '?revOnly=1');
     const { rev } = await r.json();
-    if (rev > sync.rev) {
-      const r2 = await fetch('/api/sync/' + encodeURIComponent(sync.room));
-      const d = await r2.json();
-      if (d.data && Array.isArray(d.data.setlists)) {
-        const openId = currentSong && currentSong.id;
-        sync.applyingRemote = true;
-        state = d.data; sync.rev = d.rev; saveLocal();
-        localStorage.setItem('sync_rev', String(sync.rev));
-        sync.applyingRemote = false;
-        if (!$('view-song').classList.contains('hidden')) {
-          const sl = currentSetlist();
-          const s = sl && sl.songs.find((x) => x.id === openId);
-          if (s) {
-            currentSong = s; ensureRhythmAvailable(s); updateNav(); updateQuickBtn();
-            if (!$('modal-music').classList.contains('hidden')) { renderRhythmList(); renderBackingList(); }
-          } else showList();
-        } else {
-          renderList();
-        }
-        syncStatus('Güncellendi ✓ — grup: ' + sync.room);
-      }
+    if (rev === sync.rev) return;                 // sunucuda değişiklik yok
+    const r2 = await fetch('/api/sync/' + encodeURIComponent(sync.room));
+    const d = await r2.json();
+    const who = pickNewer(d.data, d.rev || 0);
+    if (who === 'server' && d.data && Array.isArray(d.data.setlists)) {
+      applyRemoteState(d);
+    } else {
+      // Sunucu farklı ama bizimki daha yeni/eşit -> rev'i eşitle; bizimki daha
+      // yeniyse (ör. sunucu uykudan yeni kalkmış) yerel durumu geri gönder.
+      sync.rev = d.rev || 0;
+      localStorage.setItem('sync_rev', String(sync.rev));
+      if (who === 'local') syncPushNow();
     }
   } catch (_) { /* ag hatasi -> sonraki yoklamada */ }
 }
@@ -2679,14 +2770,18 @@ async function syncResume() {
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room));
     const d = await r.json();
-    if (d.rev > sync.rev && d.data && Array.isArray(d.data.setlists)) {
+    const who = pickNewer(d.data, d.rev || 0);
+    if (who === 'server' && d.data && Array.isArray(d.data.setlists)) {
       sync.applyingRemote = true;
       state = d.data; sync.rev = d.rev; saveLocal();
       localStorage.setItem('sync_rev', String(sync.rev));
       sync.applyingRemote = false;
       renderList();
-    } else if (d.rev <= sync.rev) {
-      syncPushNow(); // yereldeki (çevrimdışı) değişiklikleri gönder
+    } else if (who === 'local') {
+      // Yereldeki (çevrimdışı yapılan) değişiklikler daha yeni -> gönder.
+      // Sunucu uykudan yeni kalkıp veriyi kaybetmiş olsa bile bu geri yükler.
+      sync.rev = d.rev || 0;
+      syncPushNow();
     }
   } catch (_) {}
 }
@@ -2765,8 +2860,9 @@ $('copy-cancel').addEventListener('click', closeCopy);
 
 // Görünüm modu çipleri + süre sayacı
 document.querySelectorAll('.viewchip').forEach((chip) => {
-  chip.addEventListener('click', () => setViewMode(chip.dataset.view));
+  chip.addEventListener('click', () => { if (chip.dataset.view) setViewMode(chip.dataset.view); });
 });
+$('chorus-chip').addEventListener('click', toggleChorus);
 $('timer-pill').addEventListener('click', startSongTimer); // dokun -> sıfırdan başlat
 
 // Sahne modu / metronom / kulaklık / tap tempo
