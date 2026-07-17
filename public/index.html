@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=41" />
-  <link rel="stylesheet" href="/style.css?v=41" />
+  <link rel="stylesheet" href="/fonts.css?v=42" />
+  <link rel="stylesheet" href="/style.css?v=42" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -279,7 +279,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v41</b></span>
+        <span class="muted">Sürüm <b id="app-version">v42</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -371,12 +371,14 @@
     <div class="ss-top">
       <span class="ss-badge">🎉 POTPURİ</span>
       <div class="potpuri-tools">
+        <button id="potpuri-pick-btn" class="chip">🎵 Şarkı seç</button>
         <button id="potpuri-font-down" class="icon-btn" title="Yazıyı küçült">A−</button>
         <button id="potpuri-font-up" class="icon-btn" title="Yazıyı büyüt">A+</button>
       </div>
       <button id="potpuri-exit" class="icon-btn">✕ Çık</button>
     </div>
     <div id="potpuri-body" class="potpuri-body"></div>
+    <div id="potpuri-pick" class="potpuri-pick hidden"></div>
   </div>
 
   <!-- ================= MÜZİK (Davul + Altyapı) ================= -->
@@ -491,6 +493,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=41"></script>
+  <script src="/app.js?v=42"></script>
 </body>
 </html>

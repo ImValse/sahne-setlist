@@ -1787,21 +1787,46 @@ function doLyricSearch(e) {
   }
 }
 
-/* ---------- Potpuri: seçili setin nakaratları tek akışta ---------- */
+/* ---------- Potpuri: ELLE seçilen şarkıların nakaratları tek akışta ----------
+ * Şarkılar sl.potpuriIds (sıralı) içinde tutulur; kullanıcı "🎵 Şarkı seç"
+ * panelinden ekler/çıkarır/sıralar. Seçim gruba senkronlanır. */
 let potpuriFont = parseInt(localStorage.getItem('potpuriFont') || '22', 10);
+let potpuriPicking = false;
 function openPotpuri() {
   const sl = currentSetlist();
-  const songs = orderedSongs(sl);
+  if (!Array.isArray(sl.potpuriIds)) sl.potpuriIds = [];
+  potpuriPicking = false;
+  applyPotpuriFont();
+  $('modal-potpuri').classList.remove('hidden');
+  // Hiç seçili şarkı yoksa doğrudan seçim ekranını aç
+  if (!sl.potpuriIds.length) togglePotpuriPick(true);
+  else togglePotpuriPick(false);
+}
+function closePotpuri() { $('modal-potpuri').classList.add('hidden'); }
+
+// Oynat/Seç arası geçiş
+function togglePotpuriPick(force) {
+  potpuriPicking = (typeof force === 'boolean') ? force : !potpuriPicking;
+  $('potpuri-body').classList.toggle('hidden', potpuriPicking);
+  $('potpuri-pick').classList.toggle('hidden', !potpuriPicking);
+  $('potpuri-pick-btn').textContent = potpuriPicking ? '▶ Oynat' : '🎵 Şarkı seç';
+  if (potpuriPicking) renderPotpuriPick(); else renderPotpuriPlay();
+}
+
+// Oynatma görünümü: seçili nakaratları arka arkaya
+function renderPotpuriPlay() {
+  const sl = currentSetlist();
   const box = $('potpuri-body');
   box.innerHTML = '';
-  let n = 0;
-  songs.forEach((song) => {
-    n++;
+  const byId = {};
+  sl.songs.forEach((s) => { byId[s.id] = s; });
+  const chosen = (sl.potpuriIds || []).map((id) => byId[id]).filter(Boolean);
+  chosen.forEach((song, i) => {
     const sec = document.createElement('div');
     sec.className = 'pp-sec';
     const head = document.createElement('div');
     head.className = 'pp-head';
-    head.textContent = n + '. ' + (song.song || song.title || 'Şarkı') +
+    head.textContent = (i + 1) + '. ' + (song.song || song.title || 'Şarkı') +
       (song.artist ? ' — ' + song.artist : '');
     head.title = 'Şarkının tamamını aç';
     head.addEventListener('click', () => { closePotpuri(); openSong(song.id); });
@@ -1818,11 +1843,100 @@ function openPotpuri() {
     sec.appendChild(pre);
     box.appendChild(sec);
   });
-  if (!n) box.innerHTML = '<div class="pp-none">Bu sette şarkı yok. Önce şarkı ekleyip nakaratlarını seç.</div>';
-  applyPotpuriFont();
-  $('modal-potpuri').classList.remove('hidden');
+  if (!chosen.length) {
+    box.innerHTML = '<div class="pp-none">Henüz şarkı seçilmedi.<br>Üstten “🎵 Şarkı seç” ile potpuriye şarkı ekle.</div>';
+  }
 }
-function closePotpuri() { $('modal-potpuri').classList.add('hidden'); }
+
+// Seçim paneli: potpuridekiler (sıralı, ↑↓✕) + eklenebilecekler (➕)
+function renderPotpuriPick() {
+  const sl = currentSetlist();
+  if (!Array.isArray(sl.potpuriIds)) sl.potpuriIds = [];
+  const box = $('potpuri-pick');
+  box.innerHTML = '';
+  const byId = {};
+  sl.songs.forEach((s) => { byId[s.id] = s; });
+
+  const mkRow = (song, chosen, i) => {
+    const row = document.createElement('div');
+    row.className = 'pp-pick-row' + (chosen ? ' chosen' : '');
+    const has = !!chorusOf(song);
+    const name = document.createElement('span');
+    name.className = 'ppk-name';
+    name.innerHTML = (chosen ? (i + 1) + '. ' : '') +
+      escapeHtml(song.song || song.title || 'Şarkı') +
+      (song.artist ? ' <span class="ppk-a">' + escapeHtml(song.artist) + '</span>' : '') +
+      (has ? '' : ' <span class="ppk-warn">nakarat yok</span>');
+    row.appendChild(name);
+    const ctr = document.createElement('span');
+    ctr.className = 'ppk-ctrls';
+    const mkBtn = (txt, cls, fn) => {
+      const b = document.createElement('button');
+      b.className = 'ppk-btn' + (cls ? ' ' + cls : '');
+      b.textContent = txt;
+      b.addEventListener('click', fn);
+      return b;
+    };
+    if (chosen) {
+      ctr.appendChild(mkBtn('↑', '', () => potpuriMove(song.id, -1)));
+      ctr.appendChild(mkBtn('↓', '', () => potpuriMove(song.id, 1)));
+      ctr.appendChild(mkBtn('✕', 'danger', () => potpuriRemove(song.id)));
+    } else {
+      ctr.appendChild(mkBtn('➕ Ekle', 'add', () => potpuriAdd(song.id)));
+    }
+    row.appendChild(ctr);
+    return row;
+  };
+
+  const chosen = sl.potpuriIds.map((id) => byId[id]).filter(Boolean);
+  const h1 = document.createElement('div');
+  h1.className = 'pp-pick-h';
+  h1.textContent = '🎉 Potpuride (' + chosen.length + ')';
+  box.appendChild(h1);
+  if (!chosen.length) {
+    const e = document.createElement('div');
+    e.className = 'hint muted';
+    e.textContent = 'Aşağıdan “➕ Ekle” ile şarkı ekle.';
+    box.appendChild(e);
+  }
+  chosen.forEach((song, i) => box.appendChild(mkRow(song, true, i)));
+
+  const rest = sl.songs.filter((s) => !sl.potpuriIds.includes(s.id) && !s.isPool);
+  const h2 = document.createElement('div');
+  h2.className = 'pp-pick-h';
+  h2.textContent = 'Bu setteki diğer şarkılar (' + rest.length + ')';
+  box.appendChild(h2);
+  if (!rest.length) {
+    const e = document.createElement('div');
+    e.className = 'hint muted';
+    e.textContent = 'Başka şarkı yok. Ana listeden bu sete şarkı ekleyebilirsin.';
+    box.appendChild(e);
+  }
+  rest.forEach((song) => box.appendChild(mkRow(song, false)));
+}
+function potpuriAdd(id) {
+  const sl = currentSetlist();
+  if (!Array.isArray(sl.potpuriIds)) sl.potpuriIds = [];
+  if (!sl.potpuriIds.includes(id)) sl.potpuriIds.push(id);
+  saveState();
+  renderPotpuriPick();
+}
+function potpuriRemove(id) {
+  const sl = currentSetlist();
+  sl.potpuriIds = (sl.potpuriIds || []).filter((x) => x !== id);
+  saveState();
+  renderPotpuriPick();
+}
+function potpuriMove(id, dir) {
+  const sl = currentSetlist();
+  const a = sl.potpuriIds || [];
+  const i = a.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= a.length) return;
+  [a[i], a[j]] = [a[j], a[i]];
+  saveState();
+  renderPotpuriPick();
+}
 function applyPotpuriFont() { $('potpuri-body').style.fontSize = potpuriFont + 'px'; }
 function potpuriFontDelta(d) {
   potpuriFont = Math.max(14, Math.min(42, potpuriFont + d));
@@ -3079,6 +3193,7 @@ $('lyric-form').addEventListener('submit', doLyricSearch);
 
 // Potpuri
 $('potpuri-exit').addEventListener('click', closePotpuri);
+$('potpuri-pick-btn').addEventListener('click', () => togglePotpuriPick());
 $('potpuri-font-down').addEventListener('click', () => potpuriFontDelta(-2));
 $('potpuri-font-up').addEventListener('click', () => potpuriFontDelta(2));
 

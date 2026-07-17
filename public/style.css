@@ -785,7 +785,34 @@ body.stage .stage-nav {
 }
 .pp-text { margin: 0; }
 .pp-text.pp-empty { color: var(--muted); font-style: italic; font-family: inherit; }
-.pp-none { color: var(--muted); text-align: center; margin-top: 40px; }
+.pp-none { color: var(--muted); text-align: center; margin-top: 40px; line-height: 1.5; }
+
+/* Potpuri şarkı seçim paneli */
+.potpuri-pick { flex: 1; min-height: 0; overflow: auto; margin-top: 10px; }
+.pp-pick-h {
+  color: var(--accent); font-weight: 800; font-size: 14px;
+  margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.pp-pick-h:first-child { margin-top: 0; }
+.pp-pick-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px; margin-bottom: 6px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.pp-pick-row.chosen { background: rgba(53, 208, 127, 0.10); border-color: rgba(53, 208, 127, 0.4); }
+.ppk-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; word-break: break-word; }
+.ppk-name .ppk-a { color: var(--muted); font-weight: 400; font-size: 13px; }
+.ppk-name .ppk-warn { color: #ff9f43; font-weight: 400; font-size: 12px; }
+.ppk-ctrls { display: flex; gap: 4px; flex: none; }
+.ppk-btn {
+  min-width: 34px; height: 34px; padding: 0 8px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-3); color: var(--text);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.ppk-btn:active { background: var(--bg); }
+.ppk-btn.add { background: rgba(53, 208, 127, 0.16); border-color: var(--ok); color: var(--ok); white-space: nowrap; }
+.ppk-btn.danger { color: var(--bad, #ff5a5a); }
 
 /* ---------- Sıradaki şarkı önizleme şeridi ---------- */
 .next-peek {
