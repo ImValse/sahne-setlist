@@ -814,6 +814,43 @@ body.stage .stage-nav {
 .ppk-btn.add { background: rgba(53, 208, 127, 0.16); border-color: var(--ok); color: var(--ok); white-space: nowrap; }
 .ppk-btn.danger { color: var(--bad, #ff5a5a); }
 
+/* ---------- Enerji / tempo eğrisi ---------- */
+.list-filter { flex-wrap: wrap; }
+#btn-energy.active, #btn-lyric-search.active { background: rgba(76,141,255,0.2); border-color: var(--accent); color: var(--accent); }
+.energy-strip {
+  margin: 2px 12px 8px; padding: 8px 10px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+}
+.es-bars { display: flex; align-items: flex-end; gap: 4px; height: 92px; overflow-x: auto; padding-bottom: 2px; }
+.es-bar {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 3px; background: none; border: none; padding: 2px; cursor: pointer; min-width: 18px;
+}
+.es-col { width: 14px; border-radius: 4px 4px 0 0; display: block; }
+.es-bar.warn .es-col { outline: 2px solid var(--bad, #ff5a5a); outline-offset: 1px; }
+.es-n { font-size: 11px; color: var(--muted); }
+.es-info { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.es-info.warn { color: #ff9f43; }
+
+/* ---------- Vokal / rahat ton ipucu ---------- */
+.vocal-hint {
+  margin: 0 12px 6px; padding: 7px 12px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+  font-size: 13px; color: var(--text);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.vocal-hint.ok { border-color: var(--ok); background: rgba(53,208,127,0.10); }
+.vocal-hint b { color: var(--chord); }
+.vocal-hint .vh-apply {
+  background: var(--accent); color: #0b0d12; border: none; border-radius: 8px;
+  padding: 3px 12px; font-weight: 700; cursor: pointer; font-size: 13px;
+}
+.vocal-hint .vh-note { color: var(--muted); font-size: 12px; }
+.badge.vocal {
+  background: rgba(160,102,255,0.16); border: 1px solid #a066ff; color: #c9a6ff;
+  font-weight: 700; white-space: nowrap;
+}
+
 /* ---------- Sıradaki şarkı önizleme şeridi ---------- */
 .next-peek {
   position: fixed;

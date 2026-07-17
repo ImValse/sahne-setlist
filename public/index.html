@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=42" />
-  <link rel="stylesheet" href="/style.css?v=42" />
+  <link rel="stylesheet" href="/fonts.css?v=43" />
+  <link rel="stylesheet" href="/style.css?v=43" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -40,9 +40,12 @@
     <div class="list-filter">
       <input id="song-filter" type="search" placeholder="🔎 Bu sette şarkı bul…" autocomplete="off" />
       <button id="btn-lyric-search" class="chip lyric-btn" title="Tüm repertuarda söz içinde ara">📖 Sözde</button>
+      <button id="btn-energy" class="chip lyric-btn" title="Setin enerji/tempo akışını göster">📈 Enerji</button>
     </div>
 
     <div id="filter-bar" class="filter-bar"></div>
+
+    <div id="energy-strip" class="energy-strip hidden"></div>
 
     <button id="import-banner" class="import-banner hidden"></button>
 
@@ -97,6 +100,8 @@
         <button id="follow-btn" class="chip" title="Oto-geçiş: arkadaşının açtığı şarkıya otomatik geç">🔗 Takip</button>
       </div>
     </div>
+
+    <div id="vocal-hint" class="vocal-hint hidden"></div>
 
     <div id="song-nav" class="song-nav">
       <button id="nav-prev" class="nav-btn">
@@ -279,7 +284,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v42</b></span>
+        <span class="muted">Sürüm <b id="app-version">v43</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -291,6 +296,7 @@
       <button id="song-stageshare" class="sheet-btn">📺 Ortak Sahne ekranı</button>
       <button id="song-peek-toggle" class="sheet-btn">👁 Sıradaki şeridi: Açık</button>
       <button id="song-edit" class="sheet-btn">✎ Düzenle (akor/söz/süre)</button>
+      <button id="song-vocal" class="sheet-btn">🎤 Bu ton rahat (kilitle)</button>
       <button id="song-chorus-pick" class="sheet-btn">✂️ Nakaratı seç (potpuri için)</button>
       <button id="song-practice" class="sheet-btn">🎯 Prova listesine ekle</button>
       <button id="song-copy" class="sheet-btn">⧉ Başka setliste ekle</button>
@@ -493,6 +499,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=42"></script>
+  <script src="/app.js?v=43"></script>
 </body>
 </html>

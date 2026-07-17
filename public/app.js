@@ -499,6 +499,7 @@ function renderList() {
   const sl = currentSetlist();
   const mode = sl.sortMode || 'manual';
   renderFilters();
+  renderEnergyStrip();
   $('current-setlist-name').textContent = sl.name;
   const totalSec = sl.songs.reduce((a, s) => a + (s.duration || 0), 0);
   $('current-setlist-count').textContent =
@@ -541,6 +542,8 @@ function renderList() {
     const tag = song.color ? `<span class="badge tag-chip" style="background:${colorCss(song.color)}">${escapeHtml(colorName(song.color))}</span>` : '';
     const segue = song.segue ? '<span class="segue-mark" title="Sonrakine bağlı">🔗</span>' : '';
     const practiceBadge = song.practice ? '<span class="badge practice" title="Prova listesinde">🎯</span>' : '';
+    const vocalBadge = (song.vocalOk && songKeyStr(song))
+      ? `<span class="badge vocal" title="Rahat söylenen ton (kilitli)">🎤 ${escapeHtml(songKeyStr(song))}</span>` : '';
     let chorusBadge = '';
     if (mode === 'chorus') {
       const manual = !!(song.chorusText && song.chorusText.trim());
@@ -569,6 +572,7 @@ function renderList() {
        </div>
        ${chordbadge}
        ${chorusBadge}
+       ${vocalBadge}
        ${practiceBadge}
        ${tag}
        ${dur}
@@ -1097,6 +1101,7 @@ function updateKeyDisplay() {
   }
   el.textContent = keyStr;
   $('stage-key').textContent = keyStr;
+  updateVocalHint();
 }
 
 // Herhangi bir şarkının ekranda görünecek tonu (transpoze dahil)
@@ -1105,6 +1110,136 @@ function songKeyStr(s) {
   const semi = s.transpose || 0;
   if (!orig) return semi ? ((semi > 0 ? '+' : '') + semi) : '';
   return transposeToken(orig, semi, /b/.test(orig));
+}
+
+/* ==========================================================================
+ * ENERJİ / TEMPO EĞRİSİ  — setin akışını (yavaş↔hızlı) görselleştirir.
+ *  Enerji: BPM varsa ondan, yoksa türden (renk). 1 (çok yavaş) – 5 (çok hızlı).
+ * ========================================================================== */
+function songEnergy(song) {
+  const b = song.bpm || 0;
+  if (b) {
+    if (b <= 72) return 1;
+    if (b <= 92) return 2;
+    if (b <= 112) return 3;
+    if (b <= 138) return 4;
+    return 5;
+  }
+  const g = { blue: 1, purple: 2, orange: 2, green: 3, red: 4, gray: 5 };
+  return g[song.color] || 3;
+}
+let energyOn = localStorage.getItem('energyOn') === '1';
+function updateEnergyBtn() {
+  const b = $('btn-energy');
+  if (b) b.classList.toggle('active', energyOn);
+}
+function toggleEnergy() {
+  energyOn = !energyOn;
+  localStorage.setItem('energyOn', energyOn ? '1' : '0');
+  updateEnergyBtn();
+  renderEnergyStrip();
+}
+function renderEnergyStrip() {
+  const strip = $('energy-strip');
+  if (!strip) return;
+  const sl = currentSetlist();
+  const songs = orderedSongs(sl);
+  if (!energyOn || songs.length < 2) { strip.classList.add('hidden'); strip.innerHTML = ''; return; }
+  strip.classList.remove('hidden');
+  strip.innerHTML = '';
+  const bars = document.createElement('div');
+  bars.className = 'es-bars';
+  let prevLow = false, warns = 0;
+  songs.forEach((song, i) => {
+    const e = songEnergy(song);
+    const bar = document.createElement('button');
+    bar.className = 'es-bar';
+    const low = e <= 1;
+    if (low && prevLow) { bar.classList.add('warn'); warns++; }
+    prevLow = low;
+    const col = document.createElement('span');
+    col.className = 'es-col';
+    col.style.height = (e * 15 + 8) + 'px';
+    col.style.background = song.color ? colorCss(song.color) : 'var(--accent)';
+    const num = document.createElement('span');
+    num.className = 'es-n';
+    num.textContent = (i + 1);
+    bar.appendChild(col);
+    bar.appendChild(num);
+    bar.title = (i + 1) + '. ' + (song.song || song.title || 'Şarkı') +
+      ' · enerji ' + e + (song.bpm ? (' · ' + song.bpm + ' BPM') : '');
+    bar.addEventListener('click', () => openSong(song.id));
+    bars.appendChild(bar);
+  });
+  strip.appendChild(bars);
+  const info = document.createElement('div');
+  info.className = 'es-info' + (warns ? ' warn' : '');
+  info.textContent = warns
+    ? ('⚠ ' + warns + ' yerde arka arkaya yavaş şarkı var — pist düşebilir')
+    : '👍 Akış dengeli';
+  strip.appendChild(info);
+}
+
+/* ==========================================================================
+ * VOKAL / RAHAT TON  — "range" bilmeye gerek yok: rahat bulunan tonu kilitle,
+ *  uygulama onaylı şarkılardan grubun ortalama transpoze KAYMASINI öğrenir ve
+ *  yeni şarkıya başlangıç tonu önerir.
+ * ========================================================================== */
+function vocalProfile() {
+  const offs = [];
+  const keys = {};
+  state.setlists.forEach((sl) => sl.songs.forEach((s) => {
+    if (s.vocalOk && s.key) {
+      offs.push(s.transpose || 0);
+      const pk = songKeyStr(s);
+      if (pk) keys[pk] = (keys[pk] || 0) + 1;
+    }
+  }));
+  if (!offs.length) return null;
+  const mean = offs.reduce((a, b) => a + b, 0) / offs.length;
+  const sd = Math.sqrt(offs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / offs.length);
+  const topKeys = Object.keys(keys).sort((a, b) => keys[b] - keys[a]).slice(0, 4);
+  return { n: offs.length, avg: Math.round(mean), sd, topKeys };
+}
+function toggleVocalOk() {
+  if (!currentSong) return;
+  currentSong.vocalOk = !currentSong.vocalOk;
+  saveState();
+  closeSongSheet();
+  updateKeyDisplay();
+  renderList();
+  toast(currentSong.vocalOk
+    ? ('🎤 Rahat ton kilitlendi: ' + (songKeyStr(currentSong) || '—'))
+    : 'Rahat ton işareti kaldırıldı');
+}
+function updateVocalSheetBtn() {
+  const b = $('song-vocal');
+  if (b && currentSong) b.textContent = currentSong.vocalOk
+    ? '🎤 Rahat ton kilidini kaldır' : '🎤 Bu ton rahat (kilitle)';
+}
+function updateVocalHint() {
+  const el = $('vocal-hint');
+  if (!el) return;
+  if (!currentSong) { el.classList.add('hidden'); return; }
+  if (currentSong.vocalOk) {
+    el.className = 'vocal-hint ok';
+    el.innerHTML = '🎤 Rahat ton: <b>' + escapeHtml(songKeyStr(currentSong) || '—') + '</b> · kilitli';
+    return;
+  }
+  const p = vocalProfile();
+  if (!p || p.n < 3 || !currentSong.key) { el.classList.add('hidden'); return; }
+  const suggest = p.avg;
+  const cur = currentSong.transpose || 0;
+  const sugKey = transposeToken(currentSong.key, suggest, /b/.test(currentSong.key));
+  const varnote = p.sd >= 2.5 ? ' · tonların değişken, sadece başlangıç' : '';
+  el.className = 'vocal-hint';
+  el.innerHTML =
+    '🎤 Öneri: <b>' + (suggest > 0 ? '+' : '') + suggest + ' ton → ' + escapeHtml(sugKey) + '</b> ' +
+    (cur === suggest ? '<span class="vh-note">(şu an bu tonda)</span>'
+      : '<button id="vocal-apply" class="vh-apply">uygula</button>') +
+    '<span class="vh-note"> · ' + p.n + ' onaylı şarkıdan' + varnote + '</span>';
+  const ap = $('vocal-apply');
+  if (ap) ap.addEventListener('click', () => { setTranspose(suggest - (currentSong.transpose || 0)); });
 }
 
 let fontSize = parseInt(localStorage.getItem('sahne_font') || '18', 10);
@@ -1653,6 +1788,7 @@ function openSongSheet() {
   if (!currentSong) return;
   $('song-open-source').href = currentSong.source || '#';
   updatePracticeSheetBtn();
+  updateVocalSheetBtn();
   $('sheet-song').classList.remove('hidden');
 }
 function closeSongSheet() { $('sheet-song').classList.add('hidden'); }
@@ -3172,7 +3308,9 @@ $('song-move-down').addEventListener('click', () => { moveSong(1); closeSongShee
 $('song-refresh').addEventListener('click', refreshCurrentSong);
 $('song-edit').addEventListener('click', openEdit);
 $('song-chorus-pick').addEventListener('click', openChorusPick);
+$('song-vocal').addEventListener('click', toggleVocalOk);
 $('song-practice').addEventListener('click', togglePractice);
+$('btn-energy').addEventListener('click', toggleEnergy);
 $('song-copy').addEventListener('click', openCopy);
 $('song-delete').addEventListener('click', deleteCurrentSong);
 $('song-cancel').addEventListener('click', closeSongSheet);
@@ -3362,6 +3500,7 @@ async function forceUpdate() {
 /* ---------- Baslat ---------- */
 ensureRequestPool();
 setupStageDrag();
+updateEnergyBtn();
 renderList();
 updateFollowBtn();
 updatePeekLabel();
