@@ -759,6 +759,7 @@ body.stage .stage-nav {
 /* Pad açıkken */
 #pad-btn.active { background: #3aa7ff; color: #041424; border-color: #3aa7ff; font-weight: 700; }
 #pad-drum.active, #rhythm-pad.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+#pad-loop.active { background: #ffb038; color: #241400; border-color: #ffb038; font-weight: 700; }
 .pad-chord { min-width: 54px; color: #3aa7ff; font-weight: 700; background: transparent; border: 1px dashed rgba(58,167,255,0.5); border-radius: 8px; cursor: pointer; padding: 4px 8px; }
 .pad-chord.rec { color: #fff; background: #e0245e; border-color: #e0245e; }
 #pad-rec.active { background: #e0245e; color: #fff; border-color: #e0245e; font-weight: 700; }

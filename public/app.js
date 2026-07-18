@@ -2665,10 +2665,30 @@ const PAD_BEAT_DEFAULT = 4;   // akor için ayar yoksa varsayılan vuruş
 let padMode = localStorage.getItem('padMode') || 'follow-manual';
 if (!['follow-manual', 'follow-auto', 'drone'].includes(padMode)) padMode = 'follow-manual';
 const PAD_MODE_LABEL = { 'follow-manual': '🎸 Elle', 'follow-auto': '⏱ Oto', 'drone': '🌊 Sabit' };
+// Pad ses tınıları (şarkıya kaydedilir). type=dalga, cut=alçak-geçiren Hz, atk=giriş sn
+const PAD_SOUNDS = [
+  { id: 'soft',    name: 'Yumuşak',   type: 'triangle', cut: 1050, atk: 1.1 },
+  { id: 'warm',    name: 'Sıcak',     type: 'triangle', cut: 780,  atk: 1.3 },
+  { id: 'org',     name: 'Org',       type: 'sawtooth', cut: 1100, atk: 0.3 },
+  { id: 'strings', name: 'Yaylı',     type: 'sawtooth', cut: 1500, atk: 1.8 },
+  { id: 'choir',   name: 'Koro',      type: 'sine',     cut: 2200, atk: 1.5 },
+  { id: 'synth',   name: 'Synth',     type: 'sawtooth', cut: 2400, atk: 0.5 },
+  { id: 'soft2',   name: 'Flüt',      type: 'sine',     cut: 1400, atk: 0.9 },
+  { id: 'bright',  name: 'Parlak',    type: 'square',   cut: 1300, atk: 0.6 },
+];
+function padSoundPreset() {
+  const id = (currentSong && currentSong.padSound) || 'soft';
+  return PAD_SOUNDS.find((s) => s.id === id) || PAD_SOUNDS[0];
+}
 // Akorun kayıtlı vuruş uzunluğu (şarkıya kaydedilir, gruba senkronlanır)
 function padChordBeats(i) {
   const m = currentSong && currentSong.padBeatsMap;
   return (m && m[i]) ? m[i] : PAD_BEAT_DEFAULT;
+}
+// Akora özel oktav kaydırması (global padOct'a eklenir)
+function padChordOct(i) {
+  const m = currentSong && currentSong.padOctMap;
+  return (m && m[i]) ? m[i] : 0;
 }
 
 function padFreq(pc, octave) {
@@ -2730,13 +2750,13 @@ function startPad() {
     return;
   }
   const ctx = audioCtx, now = ctx.currentTime;
+  const snd = padSoundPreset();
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, now);
-  master.gain.linearRampToValueAtTime(padVol, now + 1.1);   // yumuşak giriş
-  // Yumuşak, kulağı tırmalamayan zincir: üçgen dalga + hafif alçak-geçiren (rezonanssız)
-  // + tiz tıraşı + gürültüyü kesen yüksek-geçiren.
+  master.gain.linearRampToValueAtTime(padVol, now + snd.atk);   // tınıya göre giriş
+  // Alçak-geçiren (rezonanssız) + gürültüyü kesen yüksek-geçiren; kesim tınıya göre
   const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass'; lp.frequency.value = 1050; lp.Q.value = 0.0001;
+  lp.type = 'lowpass'; lp.frequency.value = snd.cut; lp.Q.value = 0.0001;
   const hp = ctx.createBiquadFilter();
   hp.type = 'highpass'; hp.frequency.value = 70;
   lp.connect(hp); hp.connect(master); master.connect(ctx.destination);
@@ -2751,7 +2771,7 @@ function startPad() {
   const oscs = [];
   roles.forEach((r) => {
     const o = ctx.createOscillator();
-    o.type = 'triangle'; o.detune.value = r.det; o.frequency.value = 220;
+    o.type = snd.type; o.detune.value = r.det; o.frequency.value = 220;
     const g = ctx.createGain(); g.gain.value = r.g;
     o.connect(g); g.connect(lp);
     o.start(now);
@@ -2765,15 +2785,18 @@ function startPad() {
 function applyChordToPad(tones, immediate) {
   if (!padNodes || !tones || !audioCtx) return;
   const now = audioCtx.currentTime;
+  const extraOct = (padMode !== 'drone') ? padChordOct(padIdx) : 0;   // akora özel oktav
   padNodes.oscs.forEach((o, i) => {
     const r = padNodes.roles[i];
     let pcv = (r.role === 'third') ? (tones.third == null ? tones.pc : tones.third) : tones[r.role];
-    const f = padFreq(pcv, r.oct + padOct);
+    const f = padFreq(pcv, r.oct + padOct + extraOct);
     try { immediate ? o.frequency.setValueAtTime(f, now) : o.frequency.setTargetAtTime(f, now, 0.08); } catch (_) {}
   });
 }
+let padLoopIter = 1;   // Oto modda aktif döngünün kaçıncı turu
 function startPadAuto() {
   stopPadAuto();
+  padLoopIter = 1;
   scheduleBeatStep();
 }
 // Oto mod: her akor KENDİ vuruş sayısı kadar (BPM'e göre süre) çalar, sonra ilerler
@@ -2782,11 +2805,30 @@ function scheduleBeatStep() {
   const beats = padChordBeats(padIdx);
   const ms = beats * (60 / bpm) * 1000;
   padAutoTimer = setTimeout(() => {
-    padAdvance();
+    padAutoNext();
     if (padMode === 'follow-auto') scheduleBeatStep();
   }, ms);
 }
 function stopPadAuto() { if (padAutoTimer) { clearTimeout(padAutoTimer); clearInterval(padAutoTimer); } padAutoTimer = null; }
+// Oto ilerleme: döngü (2x nakarat vb.) varsa dikkate al
+function padLoopEndingAt(b) {
+  const loops = currentSong && currentSong.padLoops;
+  if (!Array.isArray(loops)) return null;
+  return loops.find((L) => L.b === b) || null;
+}
+function padLoopContaining(i) {
+  const loops = currentSong && currentSong.padLoops;
+  if (!Array.isArray(loops)) return null;
+  return loops.find((L) => i >= L.a && i <= L.b) || null;
+}
+function padAutoNext() {
+  if (!padSeq.length) return;
+  const loop = padLoopEndingAt(padIdx);
+  if (loop && padLoopIter < loop.n) { padLoopIter++; padIdx = loop.a; }
+  else { if (loop) padLoopIter = 1; padIdx = (padIdx + 1) % padSeq.length; }  // sayaç sadece döngü bitince sıfırlanır
+  if (padNodes) applyChordToPad(chordToTones(padSeq[padIdx]), false);
+  updatePadBtn();
+}
 function padAdvance() {
   if (!padSeq.length) return;
   padIdx = (padIdx + 1) % padSeq.length;
@@ -2823,6 +2865,61 @@ function padCycleBeats() {
   if (isPadOn() && padMode === 'follow-auto') startPadAuto();
   updatePadBtn();
 }
+// Pad tınısını değiştir (şarkıya kaydedilir) — açıksa yeni tınıyla yeniden başlat
+function padCycleSound() {
+  if (!currentSong) return;
+  const cur = currentSong.padSound || 'soft';
+  const i = PAD_SOUNDS.findIndex((s) => s.id === cur);
+  currentSong.padSound = PAD_SOUNDS[(i + 1) % PAD_SOUNDS.length].id;
+  saveState();
+  if (isPadOn()) startPad();
+  updatePadBtn();
+  toast('🎛 Pad sesi: ' + padSoundPreset().name);
+}
+// O anki akorun oktavını ayarla (0→+1→+2→−1→−2→0), şarkıya kaydedilir
+const PAD_COCT_OPTS = [0, 1, 2, -1, -2];
+function padCycleChordOct() {
+  if (!padSeq.length && currentSong) padSeq = chordSequence(currentSong);
+  if (!padSeq.length || !currentSong) { toast('Akor bulunamadı.'); return; }
+  let m = currentSong.padOctMap;
+  if (!Array.isArray(m) || m.length !== padSeq.length) {
+    const nm = new Array(padSeq.length).fill(0);
+    if (Array.isArray(m)) for (let k = 0; k < Math.min(nm.length, m.length); k++) nm[k] = m[k];
+    m = currentSong.padOctMap = nm;
+  }
+  const cur = m[padIdx] || 0;
+  m[padIdx] = PAD_COCT_OPTS[(PAD_COCT_OPTS.indexOf(cur) + 1) % PAD_COCT_OPTS.length];
+  saveState();
+  if (isPadOn()) applyChordToPad(chordToTones(padSeq[padIdx]), false);
+  updatePadBtn();
+}
+// Döngü (2x): 1. dokunuş başlangıç akoru, 2. dokunuş bitiş akoru. Döngü içindeki
+// akora basınca tur sayısını artırır (2→3→4→sil). Oto modda o kısım tekrar çalar.
+let padLoopPending = null;
+function togglePadLoop() {
+  if (padMode === 'drone') { toast('Döngü için Elle/Oto moduna geç.'); return; }
+  if (!padSeq.length && currentSong) padSeq = chordSequence(currentSong);
+  if (!padSeq.length || !currentSong) { toast('Akor bulunamadı.'); return; }
+  const existing = padLoopContaining(padIdx);
+  if (existing && padLoopPending == null) {
+    if (existing.n < 4) { existing.n++; toast('🔁 ' + existing.n + ' kez'); }
+    else { currentSong.padLoops = currentSong.padLoops.filter((L) => L !== existing); toast('Döngü kaldırıldı'); }
+    saveState(); updatePadBtn(); return;
+  }
+  if (padLoopPending == null) {
+    padLoopPending = padIdx;
+    toast('🔁 Döngü başı: ' + padSeq[padIdx] + ' — bitiş akorunda tekrar 🔁');
+    updatePadBtn(); return;
+  }
+  const a = Math.min(padLoopPending, padIdx), b = Math.max(padLoopPending, padIdx);
+  padLoopPending = null;
+  if (!Array.isArray(currentSong.padLoops)) currentSong.padLoops = [];
+  currentSong.padLoops = currentSong.padLoops.filter((L) => b < L.a || a > L.b);  // çakışanı at
+  currentSong.padLoops.push({ a, b, n: 2 });
+  saveState();
+  toast('🔁 Döngü: ' + padSeq[a] + '→' + padSeq[b] + ', 2 kez');
+  updatePadBtn();
+}
 // 🌊 Pad düğmesi: MENÜYÜ aç/kapat (sesi açmaz). Ses menüdeki ▶ Çal ile.
 function padToggleMenu() {
   padMenuOpen = !padMenuOpen;
@@ -2852,16 +2949,26 @@ function updatePadBtn() {
   const vl = $('pad-vol-label'); if (vl) vl.textContent = '%' + Math.round(padVol / 0.2 * 100);
   const ol = $('pad-oct-label'); if (ol) ol.textContent = (padOct > 0 ? '+' : '') + padOct;
   const md = $('pad-mode'); if (md) md.textContent = PAD_MODE_LABEL[padMode];
+  const sd = $('pad-sound'); if (sd) sd.textContent = '🎛 ' + padSoundPreset().name;
   const follow = padMode !== 'drone';
+  const inLoop = follow && padSeq.length ? padLoopContaining(padIdx) : null;
   const ch = $('pad-chord');
   if (ch) {
     ch.classList.toggle('hidden', !follow);
-    ch.textContent = follow ? (padSeq.length ? (padSeq[padIdx % padSeq.length] + ' ' + (padIdx % padSeq.length + 1) + '/' + padSeq.length) : '—') : '';
+    ch.textContent = follow ? (padSeq.length ? (padSeq[padIdx % padSeq.length] + ' ' + (padIdx % padSeq.length + 1) + '/' + padSeq.length + (inLoop ? ' 🔁' + inLoop.n : '')) : '—') : '';
   }
   const nx = $('pad-next'); if (nx) nx.classList.toggle('hidden', !follow);
   const pv = $('pad-prev'); if (pv) pv.classList.toggle('hidden', !follow);
   const bt = $('pad-beats');
   if (bt) { bt.classList.toggle('hidden', !follow); bt.textContent = (padSeq.length ? padChordBeats(padIdx) : PAD_BEAT_DEFAULT) + ' vuruş'; }
+  const co = $('pad-coct');
+  if (co) { co.classList.toggle('hidden', !follow); const v = padSeq.length ? padChordOct(padIdx) : 0; co.textContent = '8ve ' + (v > 0 ? '+' : '') + v; }
+  const lb = $('pad-loop');
+  if (lb) {
+    lb.classList.toggle('hidden', !follow);
+    lb.classList.toggle('active', !!inLoop || padLoopPending != null);
+    lb.textContent = (padLoopPending != null) ? '🔁 bitiş?' : (inLoop ? '🔁×' + inLoop.n : '🔁');
+  }
 }
 // ▶ Çal / ⏸ Durdur (menü içinden sesi aç/kapat). Bağlıysa davul da açılır/kapanır.
 function togglePad() {
@@ -2910,6 +3017,7 @@ function padVolDelta(d) {
 function repadForCurrent() {
   const wasOn = isPadOn();
   padIdx = 0;
+  padLoopPending = null;
   padSeq = currentSong ? chordSequence(currentSong) : [];
   if (wasOn) startPad();
   if (wasOn && padDrumLink) startPadDrum();   // davul da yeni şarkının deseniyle
@@ -4030,10 +4138,13 @@ $('pad-play').addEventListener('click', togglePad);
 $('pad-drum').addEventListener('click', togglePadDrumLink);
 $('rhythm-pad').addEventListener('click', togglePadDrumLink);
 $('pad-mode').addEventListener('click', padCycleMode);
+$('pad-sound').addEventListener('click', padCycleSound);
 $('pad-prev').addEventListener('click', padPrevTap);
 $('pad-next').addEventListener('click', padNextTap);
 $('pad-chord').addEventListener('click', padNextTap);
 $('pad-beats').addEventListener('click', padCycleBeats);
+$('pad-coct').addEventListener('click', padCycleChordOct);
+$('pad-loop').addEventListener('click', togglePadLoop);
 $('pad-oct-down').addEventListener('click', () => padOctDelta(-1));
 $('pad-oct-up').addEventListener('click', () => padOctDelta(1));
 $('pad-vol-down').addEventListener('click', () => padVolDelta(-0.02));
