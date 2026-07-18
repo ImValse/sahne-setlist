@@ -752,6 +752,19 @@ body.stage .stage-nav {
 /* Sesle komut: dinlerken kırmızımsı yanar */
 #voice-btn.active { background: #e0245e; color: #fff; border-color: #e0245e; font-weight: 700; }
 .voice-caption { font-size: 13px; color: var(--muted); margin-left: 6px; min-width: 60px; }
+/* Pad açıkken */
+#pad-btn.active { background: #3aa7ff; color: #041424; border-color: #3aa7ff; font-weight: 700; }
+/* Akıllı potpuri: köprü akoru + ton etiketi */
+#potpuri-bridge.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+.pp-key { font-size: 13px; color: var(--accent); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; margin-left: 6px; font-weight: 700; }
+.pp-bridge {
+  text-align: center; color: var(--accent); font-size: 15px;
+  margin: 2px 0 10px; padding: 4px 8px;
+  background: rgba(58, 167, 255, 0.08); border-radius: 8px;
+}
+.pp-bridge b { font-size: 18px; color: var(--text); }
+.pp-br-ar { opacity: 0.7; margin-right: 4px; }
+.pp-br-note { color: var(--muted); font-size: 13px; }
 
 /* ---------- Sözde ara ---------- */
 .list-filter { display: flex; gap: 8px; align-items: center; }

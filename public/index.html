@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=47" />
-  <link rel="stylesheet" href="/style.css?v=47" />
+  <link rel="stylesheet" href="/fonts.css?v=48" />
+  <link rel="stylesheet" href="/style.css?v=48" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -103,6 +103,7 @@
         <button id="bpm-slow" class="chip" title="Dokun: kademeli yavaşlat · tekrar: durdur">🐢 Yavaşlat</button>
         <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
         <button id="stage-mode" class="chip">🎬 Sahne</button>
+        <button id="pad-btn" class="chip" title="Boşluk doldurucu pad: şarkının tonunda yumuşak ses — şarkı arası sessizlik olmasın">🌊 Pad</button>
         <button id="follow-btn" class="chip" title="Oto-geçiş: arkadaşının açtığı şarkıya otomatik geç">🔗 Takip</button>
       </div>
       <div class="ctrl-group">
@@ -295,7 +296,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v47</b></span>
+        <span class="muted">Sürüm <b id="app-version">v48</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -389,6 +390,8 @@
       <span class="ss-badge">🎉 POTPURİ</span>
       <div class="potpuri-tools">
         <button id="potpuri-pick-btn" class="chip">🎵 Şarkı seç</button>
+        <button id="potpuri-smart" class="chip" title="Ton geçişlerine göre akıllı sırala (en az ton atlaması)">🎼 Akıllı sırala</button>
+        <button id="potpuri-bridge" class="chip" title="Şarkı aralarında köprü akorunu göster">🔗 Köprü</button>
         <button id="potpuri-crawl" class="icon-btn" title="Otomatik kaydır">▶</button>
         <button id="potpuri-speed" class="icon-btn" title="Kaydırma hızı">1×</button>
         <button id="potpuri-font-down" class="icon-btn" title="Yazıyı küçült">A−</button>
@@ -513,6 +516,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=47"></script>
+  <script src="/app.js?v=48"></script>
 </body>
 </html>

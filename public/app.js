@@ -899,6 +899,7 @@ async function openSong(songId) {
   fitToWidth();   // akorlar/sözler ekrana sığsın
   updateCrawlChip();
   updateCrawlLabels();
+  repadForCurrent();   // pad açıksa yeni şarkının tonunda devam et
 }
 
 // Setlist icinde (gosterim sirasina gore) onceki/sonraki sarkiya gec
@@ -1282,6 +1283,23 @@ function songKeyStr(s) {
   const semi = s.transpose || 0;
   if (!orig) return semi ? ((semi > 0 ? '+' : '') + semi) : '';
   return transposeToken(orig, semi, /b/.test(orig));
+}
+// Şarkının ÇALINAN tonu: kök nota indeksi (0-11, bilinmiyorsa -1), minör mü, etiket.
+// Potpuri akıllı sıralama ve pad için. Ton yoksa ilk akordan tahmin eder.
+function songKeyInfo(s) {
+  let label = songKeyStr(s) || '';
+  let root = chordRoot(label);
+  let minor = root ? /^m(?!aj)/.test(label.slice(root.length)) : false;
+  if (!root) {
+    const fl = firstLastChords(s);
+    if (fl && fl.first) {
+      root = chordRoot(fl.first);
+      minor = root ? /^m(?!aj)/.test(fl.first.slice(root.length)) : false;
+      if (root) label = root + (minor ? 'm' : '');
+    }
+  }
+  const pc = root ? noteIndex(root) : -1;
+  return { pc, minor, label };
 }
 
 /* ==========================================================================
@@ -2121,6 +2139,65 @@ function doLyricSearch(e) {
  * panelinden ekler/çıkarır/sıralar. Seçim gruba senkronlanır. */
 let potpuriFont = parseInt(localStorage.getItem('potpuriFont') || '22', 10);
 let potpuriPicking = false;
+let potpuriBridges = localStorage.getItem('potpuriBridges') !== '0'; // köprü akorları göster
+
+/* ---------- Akıllı potpuri: ton köprüleme ---------- */
+// Beşler çemberinde iki ton arası mesafe (0=aynı bölge … 6=en uzak)
+function keyDistance(a, b) {
+  if (!a || !b || a.pc < 0 || b.pc < 0) return 3;
+  const ca = (a.pc * 7) % 12, cb = (b.pc * 7) % 12;
+  let d = Math.abs(ca - cb);
+  return Math.min(d, 12 - d);
+}
+// Sonraki şarkının tonuna götüren "köprü akoru" = o tonun beşlisi (V7). Yumuşak
+// giriş sağlar. Aynı tonda köprü gerekmez.
+function bridgeChord(nextInfo, preferFlat) {
+  if (!nextInfo || nextInfo.pc < 0) return '';
+  const v = (nextInfo.pc + 7) % 12;
+  return (preferFlat ? FLAT[v] : SHARP[v]) + '7';
+}
+// Seçili şarkıları ton atlamaları en az olacak şekilde sırala (açgözlü, en iyi
+// başlangıç). n küçük olduğu için hızlı.
+function smartOrderPotpuri() {
+  const sl = currentSetlist();
+  const ids = (sl.potpuriIds || []).slice();
+  if (ids.length < 3) { toast('En az 3 şarkı gerek.'); return; }
+  const byId = {}; sl.songs.forEach((s) => { byId[s.id] = s; });
+  const items = ids.map((id) => ({ id, info: byId[id] ? songKeyInfo(byId[id]) : { pc: -1 } })).filter((x) => byId[x.id]);
+  const n = items.length;
+  let best = null, bestCost = Infinity;
+  for (let start = 0; start < n; start++) {
+    const used = new Array(n).fill(false);
+    const order = [start]; used[start] = true;
+    let cost = 0;
+    for (let k = 1; k < n; k++) {
+      const last = items[order[order.length - 1]];
+      let bi = -1, bd = Infinity;
+      for (let j = 0; j < n; j++) {
+        if (used[j]) continue;
+        const d = keyDistance(last.info, items[j].info);
+        if (d < bd) { bd = d; bi = j; }
+      }
+      used[bi] = true; order.push(bi); cost += bd;
+    }
+    if (cost < bestCost) { bestCost = cost; best = order; }
+  }
+  sl.potpuriIds = best.map((i) => items[i].id);
+  saveState();
+  renderPotpuriPick();
+  renderPotpuriPlay();
+  toast('🎼 Ton geçişlerine göre sıralandı');
+}
+function togglePotpuriBridges() {
+  potpuriBridges = !potpuriBridges;
+  localStorage.setItem('potpuriBridges', potpuriBridges ? '1' : '0');
+  updatePotpuriBridgeBtn();
+  renderPotpuriPlay();
+}
+function updatePotpuriBridgeBtn() {
+  const b = $('potpuri-bridge'); if (b) b.classList.toggle('active', potpuriBridges);
+}
+
 function openPotpuri() {
   const sl = currentSetlist();
   if (!Array.isArray(sl.potpuriIds)) sl.potpuriIds = [];
@@ -2128,6 +2205,7 @@ function openPotpuri() {
   applyPotpuriFont();
   updateCrawlLabels();
   updateCrawlBtns();
+  updatePotpuriBridgeBtn();
   $('modal-potpuri').classList.remove('hidden');
   // Hiç seçili şarkı yoksa doğrudan seçim ekranını aç
   if (!sl.potpuriIds.length) togglePotpuriPick(true);
@@ -2153,13 +2231,27 @@ function renderPotpuriPlay() {
   const byId = {};
   sl.songs.forEach((s) => { byId[s.id] = s; });
   const chosen = (sl.potpuriIds || []).map((id) => byId[id]).filter(Boolean);
+  const infos = chosen.map((s) => songKeyInfo(s));
   chosen.forEach((song, i) => {
+    // Köprü akoru: bir önceki şarkıdan bu şarkının tonuna geçiş
+    if (potpuriBridges && i > 0) {
+      const prev = infos[i - 1], cur = infos[i];
+      if (cur.pc >= 0 && prev.pc >= 0 && cur.pc !== prev.pc) {
+        const br = bridgeChord(cur, /b/.test(song.key || ''));
+        const bdiv = document.createElement('div');
+        bdiv.className = 'pp-bridge';
+        bdiv.innerHTML = '<span class="pp-br-ar">↓</span> köprü akoru: <b>' + escapeHtml(br) +
+          '</b> <span class="pp-br-note">(' + escapeHtml(prev.label || '?') + ' → ' + escapeHtml(cur.label || '?') + ')</span>';
+        box.appendChild(bdiv);
+      }
+    }
     const sec = document.createElement('div');
     sec.className = 'pp-sec';
     const head = document.createElement('div');
     head.className = 'pp-head';
-    head.textContent = (i + 1) + '. ' + (song.song || song.title || 'Şarkı') +
-      (song.artist ? ' — ' + song.artist : '');
+    const keyBadge = infos[i].label ? ' <span class="pp-key">' + escapeHtml(infos[i].label) + '</span>' : '';
+    head.innerHTML = (i + 1) + '. ' + escapeHtml(song.song || song.title || 'Şarkı') +
+      (song.artist ? ' — ' + escapeHtml(song.artist) : '') + keyBadge;
     head.title = 'Şarkının tamamını aç';
     head.addEventListener('click', () => { closePotpuri(); openSong(song.id); });
     sec.appendChild(head);
@@ -2388,6 +2480,7 @@ function showList() {
   stopScroll();
   stopCrawl();
   stopVoice();
+  stopPad(); updatePadBtn();
   stopSongTimer();
   stopRhythm();
   stopBacking();
@@ -2488,6 +2581,84 @@ function exitStage() {
 }
 function toggleStage() {
   document.body.classList.contains('stage') ? exitStage() : enterStage();
+}
+
+/* ==========================================================================
+ * BOŞLUK DOLDURUCU PAD — şarkının tonunda yumuşak, sürekli ses. Şarkı arası
+ * ölü sessizliği (dead air) kapatır. Web Audio ile üretilir; HER TON çalınır
+ * (kayıt/örnek gerekmez), internetsiz de çalışır.
+ * ========================================================================== */
+let padNodes = null;
+function padFreq(pc, octave) {
+  const midi = 12 * (octave + 1) + pc;      // C4 = 60
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+function isPadOn() { return !!padNodes; }
+function startPad(pc, minor) {
+  if (!ensureAudio()) { toast('Bu cihazda ses üretimi yok.'); return; }
+  stopPad(true);
+  const ctx = audioCtx;
+  const now = ctx.currentTime;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, now);
+  master.gain.linearRampToValueAtTime(0.075, now + 1.4);   // yumuşak giriş
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 1300; filter.Q.value = 0.6;
+  filter.connect(master); master.connect(ctx.destination);
+  const root = pc, fifth = (pc + 7) % 12, third = (pc + (minor ? 3 : 4)) % 12;
+  const voices = [
+    { pc: root, oct: 2, g: 0.5, det: -5 },
+    { pc: root, oct: 3, g: 0.4, det: 5 },
+    { pc: fifth, oct: 3, g: 0.3, det: 0 },
+    { pc: third, oct: 3, g: 0.22, det: 4 },
+    { pc: root, oct: 4, g: 0.16, det: -4 },
+  ];
+  const oscs = [];
+  voices.forEach((v) => {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = padFreq(v.pc, v.oct);
+    o.detune.value = v.det;
+    const g = ctx.createGain(); g.gain.value = v.g;
+    o.connect(g); g.connect(filter);
+    o.start(now);
+    oscs.push(o);
+  });
+  padNodes = { master, oscs };
+}
+function stopPad(immediate) {
+  if (!padNodes || !audioCtx) { padNodes = null; return; }
+  const ctx = audioCtx, now = ctx.currentTime;
+  const { master, oscs } = padNodes;
+  try {
+    const t = immediate ? 0.05 : 0.6;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(0.0001, now + t);   // yumuşak çıkış
+    oscs.forEach((o) => { try { o.stop(now + t + 0.05); } catch (_) {} });
+  } catch (_) {}
+  padNodes = null;
+}
+function updatePadBtn() {
+  const b = $('pad-btn');
+  if (b) { b.classList.toggle('active', isPadOn()); b.textContent = isPadOn() ? '🌊 Pad açık' : '🌊 Pad'; }
+}
+function togglePad() {
+  if (isPadOn()) { stopPad(); updatePadBtn(); return; }
+  if (!currentSong) return;
+  const info = songKeyInfo(currentSong);
+  if (info.pc < 0) { toast('Şarkının tonu belli değil — ⋯ → Düzenle’den ton gir.'); return; }
+  startPad(info.pc, info.minor);
+  updatePadBtn();
+  toast('🌊 Pad: ' + (info.label || '') + ' tonunda — boşlukta çalar, dokun: durdur');
+}
+// Şarkı değişince pad açıksa yeni tonda devam etsin
+function repadForCurrent() {
+  if (!isPadOn() || !currentSong) return;
+  const info = songKeyInfo(currentSong);
+  if (info.pc >= 0) startPad(info.pc, info.minor);
+  else { stopPad(); }
+  updatePadBtn();
 }
 
 /* ==========================================================================
@@ -3558,6 +3729,7 @@ $('font-down').addEventListener('click', () => changeFont(-2));
 $('font-auto').addEventListener('click', fontAuto);
 updateFontAutoBtn();
 $('voice-btn').addEventListener('click', toggleVoice);
+$('pad-btn').addEventListener('click', togglePad);
 
 // Sıralama çipleri
 document.querySelectorAll('.sortchip').forEach((chip) => {
@@ -3602,6 +3774,8 @@ $('potpuri-font-down').addEventListener('click', () => potpuriFontDelta(-2));
 $('potpuri-font-up').addEventListener('click', () => potpuriFontDelta(2));
 $('potpuri-crawl').addEventListener('click', togglePotpuriCrawl);
 $('potpuri-speed').addEventListener('click', cycleCrawlSpeed);
+$('potpuri-smart').addEventListener('click', smartOrderPotpuri);
+$('potpuri-bridge').addEventListener('click', togglePotpuriBridges);
 
 // Nakarat modu otomatik kaydırma
 $('crawl-toggle').addEventListener('click', toggleSongCrawl);
