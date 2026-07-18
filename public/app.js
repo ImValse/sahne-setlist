@@ -2589,6 +2589,10 @@ function toggleStage() {
  * (kayıt/örnek gerekmez), internetsiz de çalışır.
  * ========================================================================== */
 let padNodes = null;
+// Oktav kaydırma (-2..+2) ve ses düzeyi cihazda kalıcı
+let padOct = parseInt(localStorage.getItem('padOct') || '0', 10);
+let padVol = parseFloat(localStorage.getItem('padVol') || '0.04');
+if (!(padVol > 0 && padVol <= 0.2)) padVol = 0.04;
 function padFreq(pc, octave) {
   const midi = 12 * (octave + 1) + pc;      // C4 = 60
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -2601,30 +2605,31 @@ function startPad(pc, minor) {
   const now = ctx.currentTime;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, now);
-  master.gain.linearRampToValueAtTime(0.075, now + 1.4);   // yumuşak giriş
+  master.gain.linearRampToValueAtTime(padVol, now + 1.2);   // yumuşak giriş
   const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass'; filter.frequency.value = 1300; filter.Q.value = 0.6;
+  filter.type = 'lowpass'; filter.frequency.value = 1600; filter.Q.value = 0.5;
   filter.connect(master); master.connect(ctx.destination);
+  // Daha ince/az kalın: en pes ses oct3 (eski oct2 basıydı). padOct ile kaydırılır.
   const root = pc, fifth = (pc + 7) % 12, third = (pc + (minor ? 3 : 4)) % 12;
   const voices = [
-    { pc: root, oct: 2, g: 0.5, det: -5 },
-    { pc: root, oct: 3, g: 0.4, det: 5 },
-    { pc: fifth, oct: 3, g: 0.3, det: 0 },
-    { pc: third, oct: 3, g: 0.22, det: 4 },
-    { pc: root, oct: 4, g: 0.16, det: -4 },
+    { pc: root, oct: 3, g: 0.42, det: -5 },
+    { pc: fifth, oct: 3, g: 0.30, det: 4 },
+    { pc: third, oct: 4, g: 0.24, det: 0 },
+    { pc: root, oct: 4, g: 0.30, det: 5 },
+    { pc: fifth, oct: 4, g: 0.16, det: -4 },
   ];
   const oscs = [];
   voices.forEach((v) => {
     const o = ctx.createOscillator();
     o.type = 'sawtooth';
-    o.frequency.value = padFreq(v.pc, v.oct);
+    o.frequency.value = padFreq(v.pc, v.oct + padOct);
     o.detune.value = v.det;
     const g = ctx.createGain(); g.gain.value = v.g;
     o.connect(g); g.connect(filter);
     o.start(now);
     oscs.push(o);
   });
-  padNodes = { master, oscs };
+  padNodes = { master, oscs, voices };
 }
 function stopPad(immediate) {
   if (!padNodes || !audioCtx) { padNodes = null; return; }
@@ -2642,6 +2647,9 @@ function stopPad(immediate) {
 function updatePadBtn() {
   const b = $('pad-btn');
   if (b) { b.classList.toggle('active', isPadOn()); b.textContent = isPadOn() ? '🌊 Pad açık' : '🌊 Pad'; }
+  const g = $('pad-group'); if (g) g.classList.toggle('hidden', !isPadOn());
+  const vl = $('pad-vol-label'); if (vl) vl.textContent = '%' + Math.round(padVol / 0.2 * 100);
+  const ol = $('pad-oct-label'); if (ol) ol.textContent = (padOct > 0 ? '+' : '') + padOct;
 }
 function togglePad() {
   if (isPadOn()) { stopPad(); updatePadBtn(); return; }
@@ -2650,7 +2658,31 @@ function togglePad() {
   if (info.pc < 0) { toast('Şarkının tonu belli değil — ⋯ → Düzenle’den ton gir.'); return; }
   startPad(info.pc, info.minor);
   updatePadBtn();
-  toast('🌊 Pad: ' + (info.label || '') + ' tonunda — boşlukta çalar, dokun: durdur');
+  toast('🌊 Pad: ' + (info.label || '') + ' — oktav ve ses düzeyini yandaki düğmelerle ayarla');
+}
+// Pad açıkken oktavı/sesi canlı değiştir
+function padOctDelta(d) {
+  padOct = Math.max(-2, Math.min(2, padOct + d));
+  localStorage.setItem('padOct', String(padOct));
+  if (padNodes && audioCtx) {
+    const now = audioCtx.currentTime;
+    padNodes.oscs.forEach((o, i) => {
+      const v = padNodes.voices[i];
+      o.frequency.setTargetAtTime(padFreq(v.pc, v.oct + padOct), now, 0.06);
+    });
+  }
+  updatePadBtn();
+}
+function padVolDelta(d) {
+  padVol = Math.max(0.01, Math.min(0.2, +(padVol + d).toFixed(3)));
+  localStorage.setItem('padVol', String(padVol));
+  if (padNodes && audioCtx) {
+    const now = audioCtx.currentTime;
+    padNodes.master.gain.cancelScheduledValues(now);
+    padNodes.master.gain.setValueAtTime(padNodes.master.gain.value, now);
+    padNodes.master.gain.linearRampToValueAtTime(padVol, now + 0.12);
+  }
+  updatePadBtn();
 }
 // Şarkı değişince pad açıksa yeni tonda devam etsin
 function repadForCurrent() {
@@ -3730,6 +3762,10 @@ $('font-auto').addEventListener('click', fontAuto);
 updateFontAutoBtn();
 $('voice-btn').addEventListener('click', toggleVoice);
 $('pad-btn').addEventListener('click', togglePad);
+$('pad-oct-down').addEventListener('click', () => padOctDelta(-1));
+$('pad-oct-up').addEventListener('click', () => padOctDelta(1));
+$('pad-vol-down').addEventListener('click', () => padVolDelta(-0.02));
+$('pad-vol-up').addEventListener('click', () => padVolDelta(0.02));
 
 // Sıralama çipleri
 document.querySelectorAll('.sortchip').forEach((chip) => {

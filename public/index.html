@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=48" />
-  <link rel="stylesheet" href="/style.css?v=48" />
+  <link rel="stylesheet" href="/fonts.css?v=49" />
+  <link rel="stylesheet" href="/style.css?v=49" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -105,6 +105,15 @@
         <button id="stage-mode" class="chip">🎬 Sahne</button>
         <button id="pad-btn" class="chip" title="Boşluk doldurucu pad: şarkının tonunda yumuşak ses — şarkı arası sessizlik olmasın">🌊 Pad</button>
         <button id="follow-btn" class="chip" title="Oto-geçiş: arkadaşının açtığı şarkıya otomatik geç">🔗 Takip</button>
+      </div>
+      <div id="pad-group" class="ctrl-group hidden">
+        <span class="ctrl-label">Pad</span>
+        <button id="pad-oct-down" class="chip" title="Bir oktav pes (kalın)">Oktav −</button>
+        <span id="pad-oct-label" class="tr-value">0</span>
+        <button id="pad-oct-up" class="chip" title="Bir oktav tiz (ince)">＋</button>
+        <button id="pad-vol-down" class="chip" title="Sesi kıs">🔉</button>
+        <span id="pad-vol-label" class="tr-value">%20</span>
+        <button id="pad-vol-up" class="chip" title="Sesi aç">🔊</button>
       </div>
       <div class="ctrl-group">
         <span class="ctrl-label">Ses</span>
@@ -296,7 +305,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v48</b></span>
+        <span class="muted">Sürüm <b id="app-version">v49</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -516,6 +525,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=48"></script>
+  <script src="/app.js?v=49"></script>
 </body>
 </html>
