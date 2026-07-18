@@ -53,8 +53,21 @@ function loadState() {
   return { setlists: [{ id, name: 'Setlist 1', songs: [] }], currentId: id };
 }
 
+let lastSaveOk = true;
 function saveLocal() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) {}
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    if (!lastSaveOk) { lastSaveOk = true; }
+  } catch (e) {
+    // ÖNEMLİ: eskiden hata sessizce yutuluyordu -> kullanıcı "kaydolmuyor" derdi.
+    // Artık uyarıyoruz (çoğu zaman depolama dolu = QuotaExceededError).
+    lastSaveOk = false;
+    try {
+      const full = /quota|exceeded|QUOTA/i.test(e && (e.name + ' ' + e.message));
+      toast(full ? '⚠️ Cihaz depolaması dolu — kayıt yapılamadı! Menü → Yedek al, sonra bazı setleri sil.'
+                 : '⚠️ Kayıt hatası: ' + (e && e.message || e));
+    } catch (_) {}
+  }
 }
 function saveState() {
   // Gerçek yerel değişiklik -> içerik zaman damgasını güncelle. Eşitleme
@@ -3992,6 +4005,16 @@ function reconcile(d) {
     return;
   }
   const merged = mergeStates(state, d.data);
+  // GÜVENLİK: birleştirme, yerelde dolu (şarkısı olan) setler varken her şeyi
+  // boşaltıyorsa uygulama; yereli koru ve gruba geri gönder. Veri kaybını önler.
+  const localFull = (state.setlists || []).filter((s) => !s.isPool && (s.songs || []).length).length;
+  const mergedFull = (merged.setlists || []).filter((s) => !s.isPool && (s.songs || []).length).length;
+  if (localFull > 0 && mergedFull === 0) {
+    sync.rev = d.rev || 0;
+    localStorage.setItem('sync_rev', String(sync.rev));
+    syncPushNow();
+    return;
+  }
   const localChanged = stateSig(merged) !== stateSig(state);
   const pushNeeded = serverMissing(merged, d.data);
   const openId = currentSong && currentSong.id;
@@ -4362,17 +4385,22 @@ function importData(file) {
     try {
       const data = JSON.parse(reader.result);
       if (!data || !Array.isArray(data.setlists)) throw new Error('Geçersiz yedek dosyası');
-      // Mevcutları KORU, yedektekileri ekle (yeni id ile -> çakışma olmaz)
-      let added = 0;
+      // Mevcutları KORU, yedektekileri ekle. Hem setlist hem ŞARKI id'lerini
+      // YENİLE — böylece daha önce silinmiş id'lere ait "silme izi" (tombstone)
+      // geri yüklenen şarkıları tekrar silmez (restore güvenilir olur).
+      let added = 0, songCount = 0;
       data.setlists.forEach((sl) => {
-        if (!sl || !Array.isArray(sl.songs)) return;
-        state.setlists.push({ id: uid(), name: sl.name || 'Setlist', sortMode: sl.sortMode || 'manual', songs: sl.songs });
+        if (!sl || !Array.isArray(sl.songs) || sl.isPool) return;
+        const songs = sl.songs.map((s) => { songCount++; return { ...s, id: uid() }; });
+        state.setlists.push({ id: uid(), name: sl.name || 'Setlist', sortMode: sl.sortMode || 'manual', genreOrder: sl.genreOrder, songs });
         added++;
       });
       saveState();
+      // Geri yüklenenleri gruba da it (varsa) — böylece diğer cihazlara da gider
+      if (sync.connected) syncPushNow();
       renderList();
       renderSetlists();
-      toast(added + ' setlist geri yüklendi');
+      toast('✓ ' + added + ' setlist / ' + songCount + ' şarkı geri yüklendi' + (lastSaveOk ? '' : ' (ama kayıt hatası var!)'));
     } catch (e) { toast('Dosya okunamadı: ' + e.message); }
   };
   reader.readAsText(file);
