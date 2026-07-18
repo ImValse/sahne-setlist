@@ -2665,16 +2665,14 @@ const PAD_BEAT_DEFAULT = 4;   // akor için ayar yoksa varsayılan vuruş
 let padMode = localStorage.getItem('padMode') || 'follow-manual';
 if (!['follow-manual', 'follow-auto', 'drone'].includes(padMode)) padMode = 'follow-manual';
 const PAD_MODE_LABEL = { 'follow-manual': '🎸 Elle', 'follow-auto': '⏱ Oto', 'drone': '🌊 Sabit' };
-// Pad ses tınıları (şarkıya kaydedilir). type=dalga, cut=alçak-geçiren Hz, atk=giriş sn
+// Pad ses tınıları (şarkıya kaydedilir). Belirgin farklı olsunlar diye dalga +
+// kesim + rezonans(q) + giriş(atk) + vibrato(vib cent, vr Hz) birlikte değişir.
 const PAD_SOUNDS = [
-  { id: 'soft',    name: 'Yumuşak',   type: 'triangle', cut: 1050, atk: 1.1 },
-  { id: 'warm',    name: 'Sıcak',     type: 'triangle', cut: 780,  atk: 1.3 },
-  { id: 'org',     name: 'Org',       type: 'sawtooth', cut: 1100, atk: 0.3 },
-  { id: 'strings', name: 'Yaylı',     type: 'sawtooth', cut: 1500, atk: 1.8 },
-  { id: 'choir',   name: 'Koro',      type: 'sine',     cut: 2200, atk: 1.5 },
-  { id: 'synth',   name: 'Synth',     type: 'sawtooth', cut: 2400, atk: 0.5 },
-  { id: 'soft2',   name: 'Flüt',      type: 'sine',     cut: 1400, atk: 0.9 },
-  { id: 'bright',  name: 'Parlak',    type: 'square',   cut: 1300, atk: 0.6 },
+  { id: 'soft',    name: 'Yumuşak', type: 'triangle', cut: 900,  q: 0.3, atk: 1.0, vib: 0,  vr: 0 },
+  { id: 'org',     name: 'Org',     type: 'square',   cut: 2300, q: 0.4, atk: 0.04, vib: 0, vr: 0 },
+  { id: 'strings', name: 'Yaylı',   type: 'sawtooth', cut: 1600, q: 0.5, atk: 2.0, vib: 9,  vr: 5.2 },
+  { id: 'synth',   name: 'Synth',   type: 'sawtooth', cut: 2700, q: 7,   atk: 0.35, vib: 0, vr: 0 },
+  { id: 'choir',   name: 'Koro',    type: 'sine',     cut: 3200, q: 0.2, atk: 1.6, vib: 13, vr: 4.5 },
 ];
 function padSoundPreset() {
   const id = (currentSong && currentSong.padSound) || 'soft';
@@ -2754,12 +2752,20 @@ function startPad() {
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, now);
   master.gain.linearRampToValueAtTime(padVol, now + snd.atk);   // tınıya göre giriş
-  // Alçak-geçiren (rezonanssız) + gürültüyü kesen yüksek-geçiren; kesim tınıya göre
+  // Alçak-geçiren (rezonans=tınıya göre) + gürültüyü kesen yüksek-geçiren
   const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass'; lp.frequency.value = snd.cut; lp.Q.value = 0.0001;
+  lp.type = 'lowpass'; lp.frequency.value = snd.cut; lp.Q.value = snd.q || 0.0001;
   const hp = ctx.createBiquadFilter();
   hp.type = 'highpass'; hp.frequency.value = 70;
   lp.connect(hp); hp.connect(master); master.connect(ctx.destination);
+  // Vibrato (yaylı/koro): tüm seslerin detune'una LFO
+  let vibLfo = null, vibGain = null;
+  if (snd.vib > 0) {
+    vibLfo = ctx.createOscillator(); vibLfo.type = 'sine'; vibLfo.frequency.value = snd.vr;
+    vibGain = ctx.createGain(); vibGain.gain.value = snd.vib;
+    vibLfo.connect(vibGain);
+    vibLfo.start(now);
+  }
   // İki hafif akortsuz kök = sıcak "chorus" gövde; beşli gövde, üçlü renk
   const roles = [
     { role: 'root', oct: 3, g: 0.5, det: -7 },
@@ -2772,12 +2778,13 @@ function startPad() {
   roles.forEach((r) => {
     const o = ctx.createOscillator();
     o.type = snd.type; o.detune.value = r.det; o.frequency.value = 220;
+    if (vibGain) vibGain.connect(o.detune);   // vibrato uygula
     const g = ctx.createGain(); g.gain.value = r.g;
     o.connect(g); g.connect(lp);
     o.start(now);
     oscs.push(o);
   });
-  padNodes = { master, oscs, roles };
+  padNodes = { master, oscs, roles, vibLfo };
   applyChordToPad(tones, true);
   if (padMode === 'follow-auto') startPadAuto();
 }
@@ -2793,11 +2800,22 @@ function applyChordToPad(tones, immediate) {
     try { immediate ? o.frequency.setValueAtTime(f, now) : o.frequency.setTargetAtTime(f, now, 0.08); } catch (_) {}
   });
 }
-let padLoopIter = 1;   // Oto modda aktif döngünün kaçıncı turu
+let padLoopIter = 1;    // Oto modda aktif döngünün kaçıncı turu
+let padBeatAccum = 0;   // davul çalarken: bu akorda geçen vuruş sayısı
 function startPadAuto() {
   stopPadAuto();
   padLoopIter = 1;
+  padBeatAccum = 0;
+  // Davul çalıyorsa pad'i onun vuruşları ilerletir (aynı saat = kilitli tempo).
+  // Değilse kendi zamanlayıcısıyla gider.
+  if (rhythmPlaying) return;
   scheduleBeatStep();
+}
+// Davulun her vuruşunda (rhythmScheduler'dan) çağrılır — pad'i tempoya kilitler
+function padBeatTick() {
+  if (padMode !== 'follow-auto' || !isPadOn()) return;
+  padBeatAccum++;
+  if (padBeatAccum >= padChordBeats(padIdx)) { padBeatAccum = 0; padAutoNext(); }
 }
 // Oto mod: her akor KENDİ vuruş sayısı kadar (BPM'e göre süre) çalar, sonra ilerler
 function scheduleBeatStep() {
@@ -2930,13 +2948,14 @@ function stopPad(immediate) {
   stopPadAuto();
   if (!padNodes || !audioCtx) { padNodes = null; return; }
   const ctx = audioCtx, now = ctx.currentTime;
-  const { master, oscs } = padNodes;
+  const { master, oscs, vibLfo } = padNodes;
   try {
     const t = immediate ? 0.05 : 0.6;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
     master.gain.linearRampToValueAtTime(0.0001, now + t);
     oscs.forEach((o) => { try { o.stop(now + t + 0.05); } catch (_) {} });
+    if (vibLfo) { try { vibLfo.stop(now + t + 0.05); } catch (_) {} }
   } catch (_) {}
   padNodes = null;
 }
@@ -2978,7 +2997,7 @@ function togglePad() {
     updatePadBtn(); return;
   }
   if (!currentSong) return;
-  padIdx = 0;
+  // padIdx sıfırlanmaz: bulunduğun akordan başlar (▶ Akor / ◀ ile seçtiğin yerden)
   startPad();
   if (isPadOn() && padDrumLink) startPadDrum();
   updatePadBtn();
@@ -3274,7 +3293,14 @@ function rhythmScheduler() {
     if (hasK) playKick(t);
     if (hasS) playSnare(t, hasK ? 0.55 : 1);   // kick ile aynı anda ise snare'i daha çok kıs
     if (hasH) playHat(t);
-    if (i % 4 === 0) flashRhythmBtn(t);
+    if (i % 4 === 0) {
+      flashRhythmBtn(t);
+      // Pad'i davulun vuruşuna kilitle (aynı saat) — chord değişimi tam beat'te
+      if (padMode === 'follow-auto' && isPadOn()) {
+        const delay = Math.max(0, (t - audioCtx.currentTime) * 1000);
+        setTimeout(padBeatTick, delay);
+      }
+    }
     rhythmStep = (rhythmStep + 1) % 16;
     rhythmNextTime += stepDur;
   }
@@ -3288,6 +3314,8 @@ function playPattern(pat) {
   rhythmStep = 0;
   if (rhythmTimer) clearInterval(rhythmTimer);
   rhythmNextTime = audioCtx.currentTime + 0.08;
+  // Pad oto çalıyorsa kendi zamanlayıcısını bırak; artık davulun vuruşu ilerletir
+  if (padMode === 'follow-auto' && isPadOn()) { stopPadAuto(); padBeatAccum = 0; }
   rhythmScheduler();
   rhythmTimer = setInterval(rhythmScheduler, 25);
   return true;
@@ -3307,6 +3335,8 @@ function stopRhythm() {
   activePattern = null;
   stopSlow();
   liveBpm = null;
+  // Davul durdu ama pad oto çalıyorsa kendi zamanlamasına dönsün
+  if (padMode === 'follow-auto' && isPadOn()) startPadAuto();
   updateRhythmBtn();
   updateQuickBtn();
   updateBpmUI();
