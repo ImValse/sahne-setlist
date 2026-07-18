@@ -2732,23 +2732,28 @@ function startPad() {
   const ctx = audioCtx, now = ctx.currentTime;
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, now);
-  master.gain.linearRampToValueAtTime(padVol, now + 0.9);
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass'; filter.frequency.value = 1600; filter.Q.value = 0.5;
-  filter.connect(master); master.connect(ctx.destination);
+  master.gain.linearRampToValueAtTime(padVol, now + 1.1);   // yumuşak giriş
+  // Yumuşak, kulağı tırmalamayan zincir: üçgen dalga + hafif alçak-geçiren (rezonanssız)
+  // + tiz tıraşı + gürültüyü kesen yüksek-geçiren.
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 1050; lp.Q.value = 0.0001;
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 70;
+  lp.connect(hp); hp.connect(master); master.connect(ctx.destination);
+  // İki hafif akortsuz kök = sıcak "chorus" gövde; beşli gövde, üçlü renk
   const roles = [
-    { role: 'root', oct: 3, g: 0.42, det: -5 },
-    { role: 'fifth', oct: 3, g: 0.30, det: 4 },
-    { role: 'third', oct: 4, g: 0.24, det: 0 },
-    { role: 'root', oct: 4, g: 0.30, det: 5 },
-    { role: 'fifth', oct: 4, g: 0.16, det: -4 },
+    { role: 'root', oct: 3, g: 0.5, det: -7 },
+    { role: 'root', oct: 3, g: 0.5, det: 7 },
+    { role: 'fifth', oct: 3, g: 0.34, det: 0 },
+    { role: 'third', oct: 4, g: 0.28, det: 4 },
+    { role: 'root', oct: 4, g: 0.22, det: -4 },
   ];
   const oscs = [];
   roles.forEach((r) => {
     const o = ctx.createOscillator();
-    o.type = 'sawtooth'; o.detune.value = r.det; o.frequency.value = 220;
+    o.type = 'triangle'; o.detune.value = r.det; o.frequency.value = 220;
     const g = ctx.createGain(); g.gain.value = r.g;
-    o.connect(g); g.connect(filter);
+    o.connect(g); g.connect(lp);
     o.start(now);
     oscs.push(o);
   });
@@ -2764,7 +2769,7 @@ function applyChordToPad(tones, immediate) {
     const r = padNodes.roles[i];
     let pcv = (r.role === 'third') ? (tones.third == null ? tones.pc : tones.third) : tones[r.role];
     const f = padFreq(pcv, r.oct + padOct);
-    try { immediate ? o.frequency.setValueAtTime(f, now) : o.frequency.setTargetAtTime(f, now, 0.05); } catch (_) {}
+    try { immediate ? o.frequency.setValueAtTime(f, now) : o.frequency.setTargetAtTime(f, now, 0.08); } catch (_) {}
   });
 }
 function startPadAuto() {
@@ -2788,14 +2793,19 @@ function padAdvance() {
   if (padNodes) applyChordToPad(chordToTones(padSeq[padIdx]), false);
   updatePadBtn();
 }
-// "▶ Akor" (ya da akor rozeti): sonraki akora geç (ses kapalıyken de akorları
-// gezip vuruş ayarlayabilmek için ses gerektirmez). Oto modda zamanlamayı hizalar.
-function padNextTap() {
+// Akorlar arasında elle gez (dir=+1 sonraki, -1 önceki). Ses kapalıyken de çalışır
+// (akorları gezip vuruş ayarlamak için). Oto modda zamanlamayı hizalar.
+function padStep(dir) {
   if (padMode === 'drone') return;
   if (!padSeq.length && currentSong) padSeq = chordSequence(currentSong);
-  padAdvance();
+  if (!padSeq.length) return;
+  padIdx = (padIdx + dir + padSeq.length) % padSeq.length;
+  if (padNodes) applyChordToPad(chordToTones(padSeq[padIdx]), false);
   if (isPadOn() && padMode === 'follow-auto') startPadAuto();
+  updatePadBtn();
 }
+function padNextTap() { padStep(1); }
+function padPrevTap() { padStep(-1); }
 // O anki akorun vuruş uzunluğunu 2→4→8→16→2 diye ayarla (şarkıya kaydedilir)
 function padCycleBeats() {
   if (!padSeq.length && currentSong) padSeq = chordSequence(currentSong);
@@ -2848,6 +2858,7 @@ function updatePadBtn() {
     ch.textContent = follow ? (padSeq.length ? (padSeq[padIdx % padSeq.length] + ' ' + (padIdx % padSeq.length + 1) + '/' + padSeq.length) : '—') : '';
   }
   const nx = $('pad-next'); if (nx) nx.classList.toggle('hidden', !follow);
+  const pv = $('pad-prev'); if (pv) pv.classList.toggle('hidden', !follow);
   const bt = $('pad-beats');
   if (bt) { bt.classList.toggle('hidden', !follow); bt.textContent = (padSeq.length ? padChordBeats(padIdx) : PAD_BEAT_DEFAULT) + ' vuruş'; }
 }
@@ -3968,6 +3979,7 @@ $('voice-btn').addEventListener('click', toggleVoice);
 $('pad-btn').addEventListener('click', padToggleMenu);
 $('pad-play').addEventListener('click', togglePad);
 $('pad-mode').addEventListener('click', padCycleMode);
+$('pad-prev').addEventListener('click', padPrevTap);
 $('pad-next').addEventListener('click', padNextTap);
 $('pad-chord').addEventListener('click', padNextTap);
 $('pad-beats').addEventListener('click', padCycleBeats);
