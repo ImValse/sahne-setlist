@@ -69,6 +69,22 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/* ---------- Silme izi (tombstone) ----------
+ * Eşitleme artık iki tarafı BİRLEŞTİRİYOR (id'ye göre union). Bir cihazda
+ * eklenen şarkı, diğer cihaz eski veriyle bir şey değiştirse bile kaybolmasın
+ * diye. Silmeler union'da geri gelmesin diye burada iz bırakılır. */
+function ensureTomb() {
+  if (!state.tomb || typeof state.tomb !== 'object') state.tomb = { s: {}, l: {} };
+  if (!state.tomb.s) state.tomb.s = {};
+  if (!state.tomb.l) state.tomb.l = {};
+  // aşırı büyümesin: 60 günden eski izleri at
+  const cutoff = Date.now() - 60 * 24 * 3600 * 1000;
+  for (const k in state.tomb.s) if (state.tomb.s[k] < cutoff) delete state.tomb.s[k];
+  for (const k in state.tomb.l) if (state.tomb.l[k] < cutoff) delete state.tomb.l[k];
+}
+function tombSong(id) { ensureTomb(); state.tomb.s[id] = Date.now(); }
+function tombSetlist(id) { ensureTomb(); state.tomb.l[id] = Date.now(); }
+
 function currentSetlist() {
   return state.setlists.find((s) => s.id === state.currentId) || state.setlists[0];
 }
@@ -1166,8 +1182,8 @@ function onVoiceResult(ev) {
   const now = Date.now();
   if (now < voiceCooldown) return;
   let fired = '';
-  if (/sahne\s*ileri/.test(norm) || /sonraki\s*sarki/.test(norm)) { gotoRelative(1); fired = '▶ sonraki'; }
-  else if (/sahne\s*geri/.test(norm) || /onceki\s*sarki/.test(norm)) { gotoRelative(-1); fired = '◀ önceki'; }
+  if (/sonraki/.test(norm) || /sahne\s*ileri/.test(norm)) { gotoRelative(1); fired = '▶ sonraki'; }
+  else if (/onceki/.test(norm) || /sahne\s*geri/.test(norm)) { gotoRelative(-1); fired = '◀ önceki'; }
   if (fired) {
     voiceCooldown = now + 2500;
     setVoiceCaption(fired);
@@ -1932,6 +1948,7 @@ function renderSetlists() {
       e.stopPropagation();
       if (state.setlists.filter((x) => !x.isPool).length === 1) { toast('Son setlist silinemez'); return; }
       if (!confirm('“' + sl.name + '” silinsin mi?')) return;
+      tombSetlist(sl.id);
       state.setlists = state.setlists.filter((x) => x.id !== sl.id);
       if (state.currentId === sl.id) state.currentId = (state.setlists.find((x) => !x.isPool) || state.setlists[0]).id;
       saveState();
@@ -2335,6 +2352,7 @@ function moveSong(dir) {
 
 function deleteCurrentSong() {
   const sl = currentSetlist();
+  tombSong(currentSong.id);
   sl.songs = sl.songs.filter((s) => s.id !== currentSong.id);
   saveState();
   closeSongSheet();
@@ -3274,38 +3292,123 @@ async function syncPushNow() {
 function startPoll() { stopPoll(); sync.pollTimer = setInterval(syncPoll, 4000); }
 function stopPoll() { if (sync.pollTimer) clearInterval(sync.pollTimer); sync.pollTimer = null; }
 
-// İçerik zaman damgasına göre hangi taraf daha güncel? Sunucudaki rev sayacı
-// (Render uykuya dalıp dosyayı silince) sıfırlanabildiği için, karar rev'e
-// DEĞİL data.updatedAt'e dayanır. Böylece eski veriye sahip bir cihaz, yüksek
-// yerel rev'i yüzünden yeni veriyi ezemez. Zaman damgası yoksa (eski veri)
-// eski davranışa (rev karşılaştırması) düşeriz.
-function pickNewer(serverData, serverRev) {
-  const sTs = (serverData && serverData.updatedAt) || 0;
-  const lTs = (state && state.updatedAt) || 0;
-  if (sTs !== lTs) return sTs > lTs ? 'server' : 'local';
-  if (serverRev > sync.rev) return 'server';
-  if (serverRev < sync.rev) return 'local';
-  return 'equal';
+/* ---------- BİRLEŞTİRME (merge) ----------
+ * Eski davranış "en son yazan kazanır" idi: bir cihaz eski veriyle bir şey
+ * değiştirip gönderince, diğer cihazda eklenen şarkılar siliniyordu.
+ * Artık iki taraf id'ye göre BİRLEŞTİRİLİR: her iki taraftaki eklemeler korunur,
+ * silmeler tombstone (silme izi) ile temizlenir. Aynı öğedeki çakışan alanlarda
+ * (ör. transpoze) genel updatedAt'i yeni olan taraf kazanır. */
+function mergeTombMaps(a, b) {
+  const one = (x, y) => {
+    const m = {};
+    for (const k in (x || {})) m[k] = x[k];
+    for (const k in (y || {})) m[k] = Math.max(m[k] || 0, y[k]);
+    return m;
+  };
+  return { s: one(a && a.s, b && b.s), l: one(a && a.l, b && b.l) };
+}
+function mergeSongs(localSongs, serverSongs, serverNewer, tombS) {
+  const lMap = {}, sMap = {};
+  (localSongs || []).forEach((s) => { if (s && s.id) lMap[s.id] = s; });
+  (serverSongs || []).forEach((s) => { if (s && s.id) sMap[s.id] = s; });
+  const baseArr = serverNewer ? (serverSongs || []) : (localSongs || []);
+  const otherArr = serverNewer ? (localSongs || []) : (serverSongs || []);
+  const out = [];
+  const seen = new Set();
+  const push = (id) => {
+    if (!id || seen.has(id) || (tombS && tombS[id])) return;
+    seen.add(id);
+    const b = serverNewer ? sMap[id] : lMap[id];
+    const o = serverNewer ? lMap[id] : sMap[id];
+    if (!b && !o) return;
+    out.push({ ...(o || {}), ...(b || {}) });   // yeni taraf (base) çakışan alanları kazanır
+  };
+  baseArr.forEach((s) => s && push(s.id));       // önce yeni tarafın sırası
+  otherArr.forEach((s) => s && push(s.id));      // sonra diğer tarafın eklemeleri
+  return out;
+}
+function mergeStates(local, server) {
+  const lTs = (local && local.updatedAt) || 0;
+  const sTs = (server && server.updatedAt) || 0;
+  const serverNewer = sTs > lTs;
+  const tomb = mergeTombMaps(local && local.tomb, server && server.tomb);
+  const lMap = {}, sMap = {};
+  (local && local.setlists || []).forEach((sl) => { if (sl && sl.id) lMap[sl.id] = sl; });
+  (server && server.setlists || []).forEach((sl) => { if (sl && sl.id) sMap[sl.id] = sl; });
+  const baseArr = serverNewer ? (server && server.setlists || []) : (local && local.setlists || []);
+  const otherArr = serverNewer ? (local && local.setlists || []) : (server && server.setlists || []);
+  const setlists = [];
+  const seen = new Set();
+  const push = (id) => {
+    if (!id || seen.has(id) || tomb.l[id]) return;
+    seen.add(id);
+    const b = serverNewer ? sMap[id] : lMap[id];
+    const o = serverNewer ? lMap[id] : sMap[id];
+    if (!b && !o) return;
+    const songs = mergeSongs(lMap[id] && lMap[id].songs, sMap[id] && sMap[id].songs, serverNewer, tomb.s);
+    setlists.push({ ...(o || {}), ...(b || {}), songs });
+  };
+  baseArr.forEach((sl) => sl && push(sl.id));
+  otherArr.forEach((sl) => sl && push(sl.id));
+  let currentId = (serverNewer ? (server && server.currentId) : (local && local.currentId));
+  if (!setlists.some((s) => s.id === currentId)) currentId = ((setlists.find((s) => !s.isPool) || setlists[0] || {}).id);
+  return { setlists, currentId, tomb, updatedAt: Math.max(lTs, sTs) };
+}
+// İçerik imzası (updatedAt hariç) — değişiklik olup olmadığını anlamak için
+function stateSig(s) {
+  if (!s) return '';
+  return JSON.stringify({ setlists: s.setlists, currentId: s.currentId, tomb: s.tomb || null });
+}
+// merged'de olup sunucuda olmayan bir şey var mı? (ekleme/silme izi) -> geri gönder
+function serverMissing(merged, server) {
+  const have = new Set();
+  (server && server.setlists || []).forEach((sl) => {
+    if (sl && sl.id) have.add('l:' + sl.id);
+    (sl && sl.songs || []).forEach((s) => { if (s && s.id) have.add('s:' + s.id); });
+  });
+  for (const sl of (merged.setlists || [])) {
+    if (!have.has('l:' + sl.id)) return true;
+    for (const s of (sl.songs || [])) if (!have.has('s:' + s.id)) return true;
+  }
+  const st = (server && server.tomb) || {};
+  const mt = merged.tomb || {};
+  for (const k in (mt.s || {})) if (!(st.s && st.s[k])) return true;
+  for (const k in (mt.l || {})) if (!(st.l && st.l[k])) return true;
+  return false;
 }
 
-// Sunucudan gelen daha yeni durumu bu cihaza uygula (açık şarkıyı koruyarak)
-function applyRemoteState(d) {
+// Sunucu verisiyle yereli birleştir, uygula, gerekiyorsa birliği geri gönder
+function reconcile(d) {
+  if (!d || !d.data || !Array.isArray(d.data.setlists) || !d.data.setlists.length) {
+    // Sunucu boş/bozuk (ör. Render uykudan yeni kalktı) -> yereli koru, gönder
+    sync.rev = (d && d.rev) || 0;
+    localStorage.setItem('sync_rev', String(sync.rev));
+    if (state.setlists && state.setlists.some((s) => !s.isPool && (s.songs || []).length)) syncPushNow();
+    return;
+  }
+  const merged = mergeStates(state, d.data);
+  const localChanged = stateSig(merged) !== stateSig(state);
+  const pushNeeded = serverMissing(merged, d.data);
   const openId = currentSong && currentSong.id;
   sync.applyingRemote = true;
-  state = d.data; sync.rev = d.rev; saveLocal();
+  state = merged; saveLocal();
+  sync.rev = d.rev || 0;
   localStorage.setItem('sync_rev', String(sync.rev));
   sync.applyingRemote = false;
-  if (!$('view-song').classList.contains('hidden')) {
-    const sl = currentSetlist();
-    const s = sl && sl.songs.find((x) => x.id === openId);
-    if (s) {
-      currentSong = s; ensureRhythmAvailable(s); updateNav(); updateQuickBtn();
-      if (!$('modal-music').classList.contains('hidden')) { renderRhythmList(); renderBackingList(); }
-    } else showList();
-  } else {
-    renderList();
+  if (localChanged) {
+    if (!$('view-song').classList.contains('hidden')) {
+      const sl = currentSetlist();
+      const s = sl && sl.songs.find((x) => x.id === openId);
+      if (s) {
+        currentSong = s; ensureRhythmAvailable(s); updateNav(); updateQuickBtn();
+        if (!$('modal-music').classList.contains('hidden')) { renderRhythmList(); renderBackingList(); }
+      } else showList();
+    } else {
+      renderList();
+    }
+    syncStatus('Güncellendi ✓ — grup: ' + sync.room);
   }
-  syncStatus('Güncellendi ✓ — grup: ' + sync.room);
+  if (pushNeeded) syncPushNow();   // bizdeki eklemeleri/silmeleri gruba yay
 }
 
 let inboxTick = 0;
@@ -3319,16 +3422,7 @@ async function syncPoll() {
     if (rev === sync.rev) return;                 // sunucuda değişiklik yok
     const r2 = await fetch('/api/sync/' + encodeURIComponent(sync.room));
     const d = await r2.json();
-    const who = pickNewer(d.data, d.rev || 0);
-    if (who === 'server' && d.data && Array.isArray(d.data.setlists)) {
-      applyRemoteState(d);
-    } else {
-      // Sunucu farklı ama bizimki daha yeni/eşit -> rev'i eşitle; bizimki daha
-      // yeniyse (ör. sunucu uykudan yeni kalkmış) yerel durumu geri gönder.
-      sync.rev = d.rev || 0;
-      localStorage.setItem('sync_rev', String(sync.rev));
-      if (who === 'local') syncPushNow();
-    }
+    reconcile(d);
   } catch (_) { /* ag hatasi -> sonraki yoklamada */ }
 }
 
@@ -3407,19 +3501,7 @@ async function syncResume() {
   try {
     const r = await fetch('/api/sync/' + encodeURIComponent(sync.room));
     const d = await r.json();
-    const who = pickNewer(d.data, d.rev || 0);
-    if (who === 'server' && d.data && Array.isArray(d.data.setlists)) {
-      sync.applyingRemote = true;
-      state = d.data; sync.rev = d.rev; saveLocal();
-      localStorage.setItem('sync_rev', String(sync.rev));
-      sync.applyingRemote = false;
-      renderList();
-    } else if (who === 'local') {
-      // Yereldeki (çevrimdışı yapılan) değişiklikler daha yeni -> gönder.
-      // Sunucu uykudan yeni kalkıp veriyi kaybetmiş olsa bile bu geri yükler.
-      sync.rev = d.rev || 0;
-      syncPushNow();
-    }
+    reconcile(d);   // birleştir: iki taraftaki eklemeler de korunur
   } catch (_) {}
 }
 
