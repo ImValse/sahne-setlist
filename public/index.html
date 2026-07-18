@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=52" />
-  <link rel="stylesheet" href="/style.css?v=52" />
+  <link rel="stylesheet" href="/fonts.css?v=53" />
+  <link rel="stylesheet" href="/style.css?v=53" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -110,8 +110,9 @@
       <div id="pad-group" class="ctrl-group hidden">
         <span class="ctrl-label">Pad</span>
         <button id="pad-mode" class="chip" title="Mod: Elle (akor akor ilerlet) · Oto (tempoya göre) · Sabit (ton drone)">🎸 Elle</button>
-        <span id="pad-chord" class="tr-value pad-chord">—</span>
+        <button id="pad-chord" class="tr-value pad-chord">—</button>
         <button id="pad-next" class="chip" title="Sonraki akora geç (oto modda ayrıca hizalar)">▶ Akor</button>
+        <button id="pad-rec" class="chip" title="Akor sürelerini dokunarak kaydet — sonra Oto mod kendi ritminle çalar">⏺ Kaydet</button>
         <button id="pad-beats" class="chip hidden" title="Her akor kaç vuruş sürsün">4 vuruş</button>
         <button id="pad-oct-down" class="chip" title="Bir oktav pes (kalın)">Oktav −</button>
         <span id="pad-oct-label" class="tr-value">0</span>
@@ -310,7 +311,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v52</b></span>
+        <span class="muted">Sürüm <b id="app-version">v53</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -530,6 +531,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=52"></script>
+  <script src="/app.js?v=53"></script>
 </body>
 </html>
