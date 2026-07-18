@@ -1331,13 +1331,31 @@ function updateVocalHint() {
 }
 
 let fontSize = parseInt(localStorage.getItem('sahne_font') || '18', 10);
+// Punto kilidi: kullanıcı puntoyu elle ayarlayınca sabitlenir; şarkı değişince
+// otomatik sığdırma (fitToWidth) artık puntoyu bozmaz. Böylece gitardan el çekip
+// her şarkıda yeniden ayarlamak gerekmez.
+let fontLocked = localStorage.getItem('sahne_font_lock') === '1';
 function applyFont() {
   $('song-body').style.fontSize = fontSize + 'px';
 }
 function changeFont(delta) {
   fontSize = Math.max(9, Math.min(44, fontSize + delta));
+  fontLocked = true;
   localStorage.setItem('sahne_font', String(fontSize));
+  localStorage.setItem('sahne_font_lock', '1');
+  updateFontAutoBtn();
   applyFont();
+}
+// Otomatik sığdırmaya geri dön (kilidi kaldır, ekrana göre yeniden ayarla)
+function fontAuto() {
+  fontLocked = false;
+  localStorage.setItem('sahne_font_lock', '0');
+  updateFontAutoBtn();
+  fitToWidth();
+}
+function updateFontAutoBtn() {
+  const b = $('font-auto');
+  if (b) b.classList.toggle('active', !fontLocked);
 }
 
 // En geniş satırı ekrana sığdıracak puntoyu GERÇEK ÖLÇÜMLE seçer (proportional
@@ -1347,6 +1365,8 @@ const MIN_FIT_FONT = 13;
 const MAX_FIT_FONT = 26;
 function fitToWidth() {
   if (!currentSong || !currentSong.body) return;
+  // Punto kilitliyse kullanıcının seçtiği puntoyu koru; uzun satırlar yatay kayar.
+  if (fontLocked) { applyFont(); return; }
   const box = $('song-scroll');
   const pre = $('song-body');
   const avail = box.clientWidth - 4;
@@ -3384,6 +3404,8 @@ $('tr-up').addEventListener('click', () => setTranspose(1));
 $('tr-down').addEventListener('click', () => setTranspose(-1));
 $('font-up').addEventListener('click', () => changeFont(2));
 $('font-down').addEventListener('click', () => changeFont(-2));
+$('font-auto').addEventListener('click', fontAuto);
+updateFontAutoBtn();
 
 // Sıralama çipleri
 document.querySelectorAll('.sortchip').forEach((chip) => {

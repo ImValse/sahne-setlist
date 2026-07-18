@@ -747,6 +747,8 @@ body.stage .stage-nav {
 .sheet-btn.on { background: rgba(46, 204, 113, 0.16); color: var(--ok); font-weight: 700; }
 /* Otomatik kaydırma düğmesi aktif */
 #crawl-toggle.active, #potpuri-crawl.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+/* Punto "Oto" düğmesi: aktif = otomatik sığdırma açık (punto kilitli değil) */
+#font-auto.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
 
 /* ---------- Sözde ara ---------- */
 .list-filter { display: flex; gap: 8px; align-items: center; }
