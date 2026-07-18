@@ -1107,6 +1107,74 @@ function togglePotpuriCrawl() {
   if (isCrawling()) { stopCrawl(); updateCrawlBtns(); }
   else startCrawl($('potpuri-body'));
 }
+
+/* ---------- Sesle komut (deneysel) ----------
+ * Şarkı söylerken YANLIŞ tetiklenmesin diye sözde asla geçmeyecek NADİR
+ * komut cümleleri kullanır: "sahne ileri" → sonraki, "sahne geri" → önceki.
+ * Ayrıca 2.5 sn bekleme (tek cümle iki kez tetiklemesin) + her komuttan sonra
+ * dinlemeyi sıfırlama var. webkitSpeechRecognition iPhone Safari'de çoğu
+ * sürümde YOK; yoksa kullanıcıyı uyarır. */
+let voiceRec = null;
+let voiceOn = false;
+let voiceCooldown = 0;
+function voiceSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+function setVoiceCaption(t) { const el = $('voice-caption'); if (el) el.textContent = t || ''; }
+function updateVoiceBtn() {
+  const b = $('voice-btn');
+  if (b) { b.classList.toggle('active', voiceOn); b.textContent = voiceOn ? '🎙️ Dinliyor…' : '🎙️ Sesle komut'; }
+}
+function toggleVoice() {
+  if (!voiceSupported()) {
+    toast('Bu cihaz sesle komutu desteklemiyor (iPhone Safari genelde desteklemez).');
+    return;
+  }
+  if (voiceOn) stopVoice(); else startVoice();
+}
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try { voiceRec = new SR(); }
+  catch (e) { toast('Sesle komut başlatılamadı: ' + e.message); return; }
+  voiceRec.lang = 'tr-TR';
+  voiceRec.continuous = true;
+  voiceRec.interimResults = true;
+  voiceRec.onresult = onVoiceResult;
+  voiceRec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      toast('Mikrofon izni gerekli — izin verip tekrar dene.');
+      stopVoice();
+    } else if (e.error === 'no-speech' || e.error === 'aborted') {
+      // sessizlik/kesinti: onend zaten yeniden başlatır
+    }
+  };
+  voiceRec.onend = () => { if (voiceOn) { try { voiceRec.start(); } catch (_) {} } };
+  try { voiceRec.start(); } catch (_) {}
+  voiceOn = true;
+  updateVoiceBtn();
+  setVoiceCaption('dinleniyor…');
+}
+function stopVoice() {
+  voiceOn = false;
+  if (voiceRec) { voiceRec.onend = null; try { voiceRec.stop(); } catch (_) {} voiceRec = null; }
+  updateVoiceBtn();
+  setVoiceCaption('');
+}
+function onVoiceResult(ev) {
+  let txt = '';
+  for (let i = ev.resultIndex; i < ev.results.length; i++) txt += ev.results[i][0].transcript + ' ';
+  const norm = trSimplify(txt).toLowerCase();
+  setVoiceCaption('“' + norm.trim().slice(-32) + '”');
+  const now = Date.now();
+  if (now < voiceCooldown) return;
+  let fired = '';
+  if (/sahne\s*ileri/.test(norm) || /sonraki\s*sarki/.test(norm)) { gotoRelative(1); fired = '▶ sonraki'; }
+  else if (/sahne\s*geri/.test(norm) || /onceki\s*sarki/.test(norm)) { gotoRelative(-1); fired = '◀ önceki'; }
+  if (fired) {
+    voiceCooldown = now + 2500;
+    setVoiceCaption(fired);
+    // tamponu temizle ki aynı cümle tekrar tetiklemesin
+    if (voiceRec) { try { voiceRec.stop(); } catch (_) {} }
+  }
+}
 function setViewMode(mode) {
   viewMode = mode;
   localStorage.setItem('sahne_viewmode', mode);
@@ -2301,6 +2369,7 @@ function showList() {
   clearTimeout(autoPlayTimer);
   stopScroll();
   stopCrawl();
+  stopVoice();
   stopSongTimer();
   stopRhythm();
   stopBacking();
@@ -3406,6 +3475,7 @@ $('font-up').addEventListener('click', () => changeFont(2));
 $('font-down').addEventListener('click', () => changeFont(-2));
 $('font-auto').addEventListener('click', fontAuto);
 updateFontAutoBtn();
+$('voice-btn').addEventListener('click', toggleVoice);
 
 // Sıralama çipleri
 document.querySelectorAll('.sortchip').forEach((chip) => {

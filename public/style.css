@@ -749,6 +749,9 @@ body.stage .stage-nav {
 #crawl-toggle.active, #potpuri-crawl.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
 /* Punto "Oto" düğmesi: aktif = otomatik sığdırma açık (punto kilitli değil) */
 #font-auto.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
+/* Sesle komut: dinlerken kırmızımsı yanar */
+#voice-btn.active { background: #e0245e; color: #fff; border-color: #e0245e; font-weight: 700; }
+.voice-caption { font-size: 13px; color: var(--muted); margin-left: 6px; min-width: 60px; }
 
 /* ---------- Sözde ara ---------- */
 .list-filter { display: flex; gap: 8px; align-items: center; }

@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=45" />
-  <link rel="stylesheet" href="/style.css?v=45" />
+  <link rel="stylesheet" href="/fonts.css?v=46" />
+  <link rel="stylesheet" href="/style.css?v=46" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -104,6 +104,11 @@
         <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
         <button id="stage-mode" class="chip">🎬 Sahne</button>
         <button id="follow-btn" class="chip" title="Oto-geçiş: arkadaşının açtığı şarkıya otomatik geç">🔗 Takip</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Ses</span>
+        <button id="voice-btn" class="chip" title="Sesle komut: &quot;sahne ileri&quot; = sonraki, &quot;sahne geri&quot; = önceki">🎙️ Sesle komut</button>
+        <span id="voice-caption" class="voice-caption"></span>
       </div>
     </div>
 
@@ -290,7 +295,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v45</b></span>
+        <span class="muted">Sürüm <b id="app-version">v46</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -508,6 +513,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=45"></script>
+  <script src="/app.js?v=46"></script>
 </body>
 </html>
