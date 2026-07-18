@@ -2652,10 +2652,14 @@ function toggleStage() {
  * (kayıt/örnek gerekmez), internetsiz de çalışır.
  * ========================================================================== */
 let padNodes = null;
-// Oktav kaydırma (-2..+2) ve ses düzeyi cihazda kalıcı
+// Oktav kaydırma (-2..+2), ses düzeyi ve mod cihazda kalıcı
 let padOct = parseInt(localStorage.getItem('padOct') || '0', 10);
 let padVol = parseFloat(localStorage.getItem('padVol') || '0.04');
 if (!(padVol > 0 && padVol <= 0.2)) padVol = 0.04;
+// Mod: 'chord' = sürekli akor, 'pulse' = BPM ile nabız gibi, 'root' = sade kök
+let padMode = localStorage.getItem('padMode') || 'chord';
+if (!['chord', 'pulse', 'root'].includes(padMode)) padMode = 'chord';
+const PAD_MODE_LABEL = { chord: '🎵 Akor', pulse: '💓 Nabız', root: '• Kök' };
 function padFreq(pc, octave) {
   const midi = 12 * (octave + 1) + pc;      // C4 = 60
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -2666,21 +2670,33 @@ function startPad(pc, minor) {
   stopPad(true);
   const ctx = audioCtx;
   const now = ctx.currentTime;
-  const master = ctx.createGain();
+  const master = ctx.createGain();          // ses düzeyi + yumuşak giriş
   master.gain.setValueAtTime(0.0001, now);
-  master.gain.linearRampToValueAtTime(padVol, now + 1.2);   // yumuşak giriş
+  master.gain.linearRampToValueAtTime(padVol, now + 1.2);
+  const trem = ctx.createGain();            // nabız (tremolo) katmanı
+  trem.gain.value = 1;
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass'; filter.frequency.value = 1600; filter.Q.value = 0.5;
-  filter.connect(master); master.connect(ctx.destination);
-  // Daha ince/az kalın: en pes ses oct3 (eski oct2 basıydı). padOct ile kaydırılır.
+  filter.connect(master); master.connect(trem); trem.connect(ctx.destination);
+  // Ses katmanları — moda göre. En pes ses oct3 (ince); padOct ile kaydırılır.
   const root = pc, fifth = (pc + 7) % 12, third = (pc + (minor ? 3 : 4)) % 12;
-  const voices = [
-    { pc: root, oct: 3, g: 0.42, det: -5 },
-    { pc: fifth, oct: 3, g: 0.30, det: 4 },
-    { pc: third, oct: 4, g: 0.24, det: 0 },
-    { pc: root, oct: 4, g: 0.30, det: 5 },
-    { pc: fifth, oct: 4, g: 0.16, det: -4 },
-  ];
+  let voices;
+  if (padMode === 'root') {
+    // Sade "kök": üçlü yok (majör/minör belirsiz, nötr) — kök + beşli
+    voices = [
+      { pc: root, oct: 3, g: 0.5, det: -4 },
+      { pc: fifth, oct: 3, g: 0.28, det: 4 },
+      { pc: root, oct: 4, g: 0.34, det: 3 },
+    ];
+  } else {
+    voices = [
+      { pc: root, oct: 3, g: 0.42, det: -5 },
+      { pc: fifth, oct: 3, g: 0.30, det: 4 },
+      { pc: third, oct: 4, g: 0.24, det: 0 },
+      { pc: root, oct: 4, g: 0.30, det: 5 },
+      { pc: fifth, oct: 4, g: 0.16, det: -4 },
+    ];
+  }
   const oscs = [];
   voices.forEach((v) => {
     const o = ctx.createOscillator();
@@ -2692,18 +2708,33 @@ function startPad(pc, minor) {
     o.start(now);
     oscs.push(o);
   });
-  padNodes = { master, oscs, voices };
+  // Nabız modu: şarkının BPM'inde LFO ile tremolo (her vuruşta yükselip iner)
+  let lfo = null, lfoGain = null;
+  if (padMode === 'pulse') {
+    const bpm = Math.max(40, Math.min(220, effectiveBpm() || 100));
+    const depth = 0.45;
+    trem.gain.value = 1 - depth;             // taban
+    lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = bpm / 60;          // saniyede vuruş = BPM/60
+    lfoGain = ctx.createGain();
+    lfoGain.gain.value = depth;
+    lfo.connect(lfoGain); lfoGain.connect(trem.gain);
+    lfo.start(now);
+  }
+  padNodes = { master, trem, oscs, voices, lfo, lfoGain };
 }
 function stopPad(immediate) {
   if (!padNodes || !audioCtx) { padNodes = null; return; }
   const ctx = audioCtx, now = ctx.currentTime;
-  const { master, oscs } = padNodes;
+  const { master, oscs, lfo } = padNodes;
   try {
     const t = immediate ? 0.05 : 0.6;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
     master.gain.linearRampToValueAtTime(0.0001, now + t);   // yumuşak çıkış
     oscs.forEach((o) => { try { o.stop(now + t + 0.05); } catch (_) {} });
+    if (lfo) { try { lfo.stop(now + t + 0.05); } catch (_) {} }
   } catch (_) {}
   padNodes = null;
 }
@@ -2713,6 +2744,7 @@ function updatePadBtn() {
   const g = $('pad-group'); if (g) g.classList.toggle('hidden', !isPadOn());
   const vl = $('pad-vol-label'); if (vl) vl.textContent = '%' + Math.round(padVol / 0.2 * 100);
   const ol = $('pad-oct-label'); if (ol) ol.textContent = (padOct > 0 ? '+' : '') + padOct;
+  const md = $('pad-mode'); if (md) md.textContent = PAD_MODE_LABEL[padMode];
 }
 function togglePad() {
   if (isPadOn()) { stopPad(); updatePadBtn(); return; }
@@ -2721,7 +2753,18 @@ function togglePad() {
   if (info.pc < 0) { toast('Şarkının tonu belli değil — ⋯ → Düzenle’den ton gir.'); return; }
   startPad(info.pc, info.minor);
   updatePadBtn();
-  toast('🌊 Pad: ' + (info.label || '') + ' — oktav ve ses düzeyini yandaki düğmelerle ayarla');
+  toast('🌊 Pad: ' + (info.label || '') + ' — mod/oktav/ses düğmelerle ayarlanır');
+}
+// Modu değiştir (Akor → Nabız → Kök). Açıksa yeni modda yeniden başlat.
+function padCycleMode() {
+  const seq = ['chord', 'pulse', 'root'];
+  padMode = seq[(seq.indexOf(padMode) + 1) % seq.length];
+  localStorage.setItem('padMode', padMode);
+  if (isPadOn()) repadForCurrent();
+  updatePadBtn();
+  if (padMode === 'pulse') toast('💓 Nabız: şarkının BPM’ine göre atar' + (currentSong && currentSong.bpm ? ' (' + Math.round(effectiveBpm()) + ' BPM)' : ' — BPM girilmemiş, 100 varsayıldı'));
+  else if (padMode === 'root') toast('• Kök: sade, sadece kök + beşli');
+  else toast('🎵 Akor: sürekli tam akor');
 }
 // Pad açıkken oktavı/sesi canlı değiştir
 function padOctDelta(d) {
@@ -3825,6 +3868,7 @@ $('font-auto').addEventListener('click', fontAuto);
 updateFontAutoBtn();
 $('voice-btn').addEventListener('click', toggleVoice);
 $('pad-btn').addEventListener('click', togglePad);
+$('pad-mode').addEventListener('click', padCycleMode);
 $('pad-oct-down').addEventListener('click', () => padOctDelta(-1));
 $('pad-oct-up').addEventListener('click', () => padOctDelta(1));
 $('pad-vol-down').addEventListener('click', () => padVolDelta(-0.02));
