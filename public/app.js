@@ -2848,6 +2848,7 @@ function updatePadBtn() {
   if (b) { b.classList.toggle('active', isPadOn() || padMenuOpen); b.textContent = isPadOn() ? '🌊 Pad ▸' : '🌊 Pad'; }
   const g = $('pad-group'); if (g) g.classList.toggle('hidden', !padMenuOpen);
   const pl = $('pad-play'); if (pl) { pl.classList.toggle('active', isPadOn()); pl.textContent = isPadOn() ? '⏸ Durdur' : '▶ Çal'; }
+  const dr = $('pad-drum'); if (dr) dr.classList.toggle('active', padDrumLink);
   const vl = $('pad-vol-label'); if (vl) vl.textContent = '%' + Math.round(padVol / 0.2 * 100);
   const ol = $('pad-oct-label'); if (ol) ol.textContent = (padOct > 0 ? '+' : '') + padOct;
   const md = $('pad-mode'); if (md) md.textContent = PAD_MODE_LABEL[padMode];
@@ -2862,14 +2863,19 @@ function updatePadBtn() {
   const bt = $('pad-beats');
   if (bt) { bt.classList.toggle('hidden', !follow); bt.textContent = (padSeq.length ? padChordBeats(padIdx) : PAD_BEAT_DEFAULT) + ' vuruş'; }
 }
-// ▶ Çal / ⏸ Durdur (menü içinden sesi aç/kapat)
+// ▶ Çal / ⏸ Durdur (menü içinden sesi aç/kapat). Bağlıysa davul da açılır/kapanır.
 function togglePad() {
-  if (isPadOn()) { stopPad(); updatePadBtn(); return; }
+  if (isPadOn()) {
+    stopPad();
+    if (padDrumLink && rhythmPlaying) stopRhythm();
+    updatePadBtn(); return;
+  }
   if (!currentSong) return;
   padIdx = 0;
   startPad();
+  if (isPadOn() && padDrumLink) startPadDrum();
   updatePadBtn();
-  if (isPadOn()) toast('🌊 Pad — ' + PAD_MODE_LABEL[padMode] + (padMode === 'follow-manual' ? ': “▶ Akor” ile ilerlet' : ''));
+  if (isPadOn()) toast('🌊 Pad — ' + PAD_MODE_LABEL[padMode] + (padDrumLink ? ' + 🥁 davul' : '') + (padMode === 'follow-manual' ? ' · “▶ Akor” ile ilerlet' : ''));
 }
 // Modu değiştir (Elle → Oto → Sabit). Açıksa yeni modda yeniden başlat.
 function padCycleMode() {
@@ -2902,10 +2908,48 @@ function padVolDelta(d) {
 }
 // Şarkı değişince: akor dizisini yenile, baştan başla; ses açıksa yeni şarkıyla çal
 function repadForCurrent() {
+  const wasOn = isPadOn();
   padIdx = 0;
   padSeq = currentSong ? chordSequence(currentSong) : [];
-  if (isPadOn()) startPad();
+  if (wasOn) startPad();
+  if (wasOn && padDrumLink) startPadDrum();   // davul da yeni şarkının deseniyle
   if (padMenuOpen || isPadOn()) updatePadBtn();
+}
+
+/* ---------- Pad + Davul birlikte ---------- */
+let padDrumLink = localStorage.getItem('padDrumLink') === '1';
+// Pad ile çalınacak davul deseni: şarkının kayıtlısı, yoksa türüne göre varsayılan
+function padDrumPattern() {
+  const saved = songRhythm(currentSong);
+  if (saved) return saved;
+  const byColor = { blue: 'p4', green: 'p3', red: 'p2', orange: 'p3', purple: 'p4', gray: 'p5' };
+  const id = (currentSong && byColor[currentSong.color]) || 'p3';
+  return getRhythm(id) || getRhythm('p3');
+}
+function startPadDrum() {
+  if (rhythmPlaying) return;
+  const pat = padDrumPattern();
+  if (pat && playPattern(pat)) { updateRhythmBtn(); updateQuickBtn(); }
+}
+// "🥁 Davul" (pad menüsü) / "🌊 Pad ile" (müzik menüsü): ikisini birbirine bağla
+function togglePadDrumLink() {
+  padDrumLink = !padDrumLink;
+  localStorage.setItem('padDrumLink', padDrumLink ? '1' : '0');
+  if (padDrumLink) {
+    if (isPadOn() && !rhythmPlaying) startPadDrum();
+    else if (rhythmPlaying && !isPadOn() && currentSong) { padIdx = 0; startPad(); }
+  }
+  updatePadBtn();
+  updateRhythmLinkBtn();
+  toast(padDrumLink ? '🔗 Pad + davul birlikte açılıp kapanır' : 'Pad ve davul ayrı çalışır');
+}
+function updateRhythmLinkBtn() {
+  const b = $('rhythm-pad'); if (b) b.classList.toggle('active', padDrumLink);
+}
+// Kullanıcı davulu durdurunca (menüdeki ⏹): bağlıysa pad de dursun
+function stopRhythmUser() {
+  stopRhythm();
+  if (padDrumLink && isPadOn()) { stopPad(); updatePadBtn(); }
 }
 
 /* ==========================================================================
@@ -3143,6 +3187,7 @@ function playPattern(pat) {
 function playRhythmById(id) {
   const pat = getRhythm(id);
   if (!pat || !playPattern(pat)) return;   // menüde çalmak = önizleme (otomatik kaydetmez)
+  if (padDrumLink && !isPadOn() && currentSong) { padIdx = 0; startPad(); updatePadBtn(); }
   updateRhythmBtn();
   updateQuickBtn();
   renderRhythmList();
@@ -3225,8 +3270,11 @@ function playSaved() {
   }
   const pat = songRhythm(currentSong);
   if (!pat) return;
-  if (rhythmPlaying && activePattern && activePattern.id === pat.id) { stopRhythm(); return; }
-  if (playPattern(pat)) updateQuickBtn();
+  if (rhythmPlaying && activePattern && activePattern.id === pat.id) { stopRhythmUser(); return; }
+  if (playPattern(pat)) {
+    if (padDrumLink && !isPadOn()) { padIdx = 0; startPad(); updatePadBtn(); }
+    updateQuickBtn();
+  }
 }
 
 /* ==========================================================================
@@ -3477,6 +3525,7 @@ function saveRhythmToSong() {
 /* ---------- Müzik menüsü (Davul + Altyapı) ---------- */
 function openMusic(tab) {
   updateBpmUI();
+  updateRhythmLinkBtn();
   renderRhythmList();
   renderBackingList();
   switchMusicTab(tab || 'drum');
@@ -3506,7 +3555,7 @@ function renderRhythmList() {
        ${r.custom ? '<button class="rhythm-del" data-del title="Sil">🗑</button>' : ''}`;
     row.addEventListener('click', (e) => {
       if (e.target.closest('[data-del]')) { deleteCustomRhythm(r.id); return; }
-      if (r.id === curId) stopRhythm(); else playRhythmById(r.id);
+      if (r.id === curId) stopRhythmUser(); else playRhythmById(r.id);
     });
     box.appendChild(row);
   });
@@ -3978,6 +4027,8 @@ updateFontAutoBtn();
 $('voice-btn').addEventListener('click', toggleVoice);
 $('pad-btn').addEventListener('click', padToggleMenu);
 $('pad-play').addEventListener('click', togglePad);
+$('pad-drum').addEventListener('click', togglePadDrumLink);
+$('rhythm-pad').addEventListener('click', togglePadDrumLink);
 $('pad-mode').addEventListener('click', padCycleMode);
 $('pad-prev').addEventListener('click', padPrevTap);
 $('pad-next').addEventListener('click', padNextTap);
@@ -4073,7 +4124,7 @@ $('bpm-tap').addEventListener('click', bpmTap);
 })();
 $('bpm-find').addEventListener('click', findBpmForSong);
 $('edit-tap').addEventListener('click', tapTempo);
-$('rhythm-stop').addEventListener('click', stopRhythm);
+$('rhythm-stop').addEventListener('click', stopRhythmUser);
 $('rhythm-save-song').addEventListener('click', saveRhythmToSong);
 $('rhythm-final').addEventListener('click', rhythmFinal);
 $('rhythm-final-2').addEventListener('click', rhythmFinal);
