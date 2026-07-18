@@ -2660,7 +2660,7 @@ let padMenuOpen = false;  // pad menüsü açık mı (ses açık olmaktan ayrı)
 let padOct = parseInt(localStorage.getItem('padOct') || '0', 10);
 let padVol = parseFloat(localStorage.getItem('padVol') || '0.04');
 if (!(padVol > 0 && padVol <= 0.2)) padVol = 0.04;
-const PAD_BEAT_OPTS = [2, 4, 8, 16];
+const PAD_BEAT_OPTS = [2, 4, 6, 8, 16];
 const PAD_BEAT_DEFAULT = 4;   // akor için ayar yoksa varsayılan vuruş
 let padMode = localStorage.getItem('padMode') || 'follow-manual';
 if (!['follow-manual', 'follow-auto', 'drone'].includes(padMode)) padMode = 'follow-manual';
