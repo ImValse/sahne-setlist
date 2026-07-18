@@ -2647,94 +2647,150 @@ function toggleStage() {
 }
 
 /* ==========================================================================
- * BOŞLUK DOLDURUCU PAD — şarkının tonunda yumuşak, sürekli ses. Şarkı arası
- * ölü sessizliği (dead air) kapatır. Web Audio ile üretilir; HER TON çalınır
- * (kayıt/örnek gerekmez), internetsiz de çalışır.
+ * PAD — GİTARIN ALTINDA EŞLİK. Şarkının akor dizisini takip edip o akoru çalar.
+ *  Modlar: 'follow-manual' (▶ Akor ile elle ilerlet), 'follow-auto' (tempoya
+ *  göre otomatik), 'drone' (şarkının tonunda sabit — şarkı arası boşluk için).
+ *  Web Audio ile üretilir; her akor/ton çalınır, internetsiz de.
  * ========================================================================== */
 let padNodes = null;
-// Oktav kaydırma (-2..+2), ses düzeyi ve mod cihazda kalıcı
+let padSeq = [];          // şarkının akor dizisi (sırayla, ardışık tekrar sıkıştırılmış)
+let padIdx = 0;           // o an çalınan akorun indeksi
+let padAutoTimer = null;
 let padOct = parseInt(localStorage.getItem('padOct') || '0', 10);
 let padVol = parseFloat(localStorage.getItem('padVol') || '0.04');
 if (!(padVol > 0 && padVol <= 0.2)) padVol = 0.04;
-// Mod: 'chord' = sürekli akor, 'pulse' = BPM ile nabız gibi, 'root' = sade kök
-let padMode = localStorage.getItem('padMode') || 'chord';
-if (!['chord', 'pulse', 'root'].includes(padMode)) padMode = 'chord';
-const PAD_MODE_LABEL = { chord: '🎵 Akor', pulse: '💓 Nabız', root: '• Kök' };
+let padBeats = parseInt(localStorage.getItem('padBeats') || '4', 10);
+if (![2, 4, 8].includes(padBeats)) padBeats = 4;
+let padMode = localStorage.getItem('padMode') || 'follow-manual';
+if (!['follow-manual', 'follow-auto', 'drone'].includes(padMode)) padMode = 'follow-manual';
+const PAD_MODE_LABEL = { 'follow-manual': '🎸 Elle', 'follow-auto': '⏱ Oto', 'drone': '🌊 Sabit' };
+
 function padFreq(pc, octave) {
   const midi = 12 * (octave + 1) + pc;      // C4 = 60
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
+// Şarkı gövdesindeki akorları (transpoze dahil) sırayla döndür; ardışık tekrarı at
+function chordSequence(song) {
+  const body = (song && song.body) || '';
+  if (!body) return [];
+  const semi = song.transpose || 0;
+  const preferFlat = /b/.test(song.key || '');
+  const all = [];
+  body.split('\n').forEach((line) => {
+    if (!isChordLine(line)) return;
+    line.trim().split(/\s+/).filter(Boolean).forEach((tok) => {
+      all.push(semi ? transposeToken(tok, semi, preferFlat) : tok);
+    });
+  });
+  const seq = [];
+  all.forEach((c) => { if (!seq.length || seq[seq.length - 1] !== c) seq.push(c); });
+  return seq;
+}
+// Bir akor token'ını pad notalarına çöz: {pc, third(null=güçlü akor), fifth}
+function chordToTones(tok) {
+  if (!tok) return null;
+  const root = chordRoot(tok);
+  const pc = noteIndex(root);
+  if (pc < 0) return null;
+  const rest = tok.slice(root.length).split('/')[0];   // slash-bass yok say
+  let third = (pc + 4) % 12, fifth = (pc + 7) % 12, hasThird = true;
+  if (/^m/.test(rest) && !/^maj/.test(rest)) third = (pc + 3) % 12;   // minör
+  if (/^dim|^o(?![a-z])|^°/.test(rest)) { third = (pc + 3) % 12; fifth = (pc + 6) % 12; }
+  if (/^aug|^\+/.test(rest)) fifth = (pc + 8) % 12;
+  if (/^sus2/.test(rest)) third = (pc + 2) % 12;
+  else if (/^sus/.test(rest)) third = (pc + 5) % 12;
+  if (/^5(\D|$)/.test(rest)) hasThird = false;          // güçlü akor (kök+beşli)
+  return { pc, third: hasThird ? third : null, fifth, label: tok };
+}
+// O an çalınacak notalar (moda göre): follow -> dizideki akor, drone -> şarkının tonu
+function currentPadTones() {
+  if (padMode === 'drone') {
+    const info = songKeyInfo(currentSong);
+    if (info.pc < 0) return null;
+    return { pc: info.pc, third: (info.pc + (info.minor ? 3 : 4)) % 12, fifth: (info.pc + 7) % 12, label: info.label };
+  }
+  if (!padSeq.length) return null;
+  return chordToTones(padSeq[padIdx % padSeq.length]);
+}
 function isPadOn() { return !!padNodes; }
-function startPad(pc, minor) {
+function startPad() {
   if (!ensureAudio()) { toast('Bu cihazda ses üretimi yok.'); return; }
   stopPad(true);
-  const ctx = audioCtx;
-  const now = ctx.currentTime;
-  const master = ctx.createGain();          // ses düzeyi + yumuşak giriş
+  padSeq = currentSong ? chordSequence(currentSong) : [];
+  if (padIdx >= padSeq.length) padIdx = 0;
+  const tones = currentPadTones();
+  if (!tones) {
+    toast(padMode === 'drone' ? 'Şarkının tonu belli değil.' : 'Akor bulunamadı — şarkıyı indir ya da Sabit moda geç.');
+    return;
+  }
+  const ctx = audioCtx, now = ctx.currentTime;
+  const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, now);
-  master.gain.linearRampToValueAtTime(padVol, now + 1.2);
-  const trem = ctx.createGain();            // nabız (tremolo) katmanı
-  trem.gain.value = 1;
+  master.gain.linearRampToValueAtTime(padVol, now + 0.9);
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass'; filter.frequency.value = 1600; filter.Q.value = 0.5;
-  filter.connect(master); master.connect(trem); trem.connect(ctx.destination);
-  // Ses katmanları — moda göre. En pes ses oct3 (ince); padOct ile kaydırılır.
-  const root = pc, fifth = (pc + 7) % 12, third = (pc + (minor ? 3 : 4)) % 12;
-  let voices;
-  if (padMode === 'root') {
-    // Sade "kök": üçlü yok (majör/minör belirsiz, nötr) — kök + beşli
-    voices = [
-      { pc: root, oct: 3, g: 0.5, det: -4 },
-      { pc: fifth, oct: 3, g: 0.28, det: 4 },
-      { pc: root, oct: 4, g: 0.34, det: 3 },
-    ];
-  } else {
-    voices = [
-      { pc: root, oct: 3, g: 0.42, det: -5 },
-      { pc: fifth, oct: 3, g: 0.30, det: 4 },
-      { pc: third, oct: 4, g: 0.24, det: 0 },
-      { pc: root, oct: 4, g: 0.30, det: 5 },
-      { pc: fifth, oct: 4, g: 0.16, det: -4 },
-    ];
-  }
+  filter.connect(master); master.connect(ctx.destination);
+  const roles = [
+    { role: 'root', oct: 3, g: 0.42, det: -5 },
+    { role: 'fifth', oct: 3, g: 0.30, det: 4 },
+    { role: 'third', oct: 4, g: 0.24, det: 0 },
+    { role: 'root', oct: 4, g: 0.30, det: 5 },
+    { role: 'fifth', oct: 4, g: 0.16, det: -4 },
+  ];
   const oscs = [];
-  voices.forEach((v) => {
+  roles.forEach((r) => {
     const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = padFreq(v.pc, v.oct + padOct);
-    o.detune.value = v.det;
-    const g = ctx.createGain(); g.gain.value = v.g;
+    o.type = 'sawtooth'; o.detune.value = r.det; o.frequency.value = 220;
+    const g = ctx.createGain(); g.gain.value = r.g;
     o.connect(g); g.connect(filter);
     o.start(now);
     oscs.push(o);
   });
-  // Nabız modu: şarkının BPM'inde LFO ile tremolo (her vuruşta yükselip iner)
-  let lfo = null, lfoGain = null;
-  if (padMode === 'pulse') {
-    const bpm = Math.max(40, Math.min(220, effectiveBpm() || 100));
-    const depth = 0.45;
-    trem.gain.value = 1 - depth;             // taban
-    lfo = ctx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = bpm / 60;          // saniyede vuruş = BPM/60
-    lfoGain = ctx.createGain();
-    lfoGain.gain.value = depth;
-    lfo.connect(lfoGain); lfoGain.connect(trem.gain);
-    lfo.start(now);
-  }
-  padNodes = { master, trem, oscs, voices, lfo, lfoGain };
+  padNodes = { master, oscs, roles };
+  applyChordToPad(tones, true);
+  if (padMode === 'follow-auto') startPadAuto();
+}
+// Verilen notaları pad seslerine ata (immediate=ani, değilse yumuşak kayarak)
+function applyChordToPad(tones, immediate) {
+  if (!padNodes || !tones || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  padNodes.oscs.forEach((o, i) => {
+    const r = padNodes.roles[i];
+    let pcv = (r.role === 'third') ? (tones.third == null ? tones.pc : tones.third) : tones[r.role];
+    const f = padFreq(pcv, r.oct + padOct);
+    try { immediate ? o.frequency.setValueAtTime(f, now) : o.frequency.setTargetAtTime(f, now, 0.05); } catch (_) {}
+  });
+}
+function startPadAuto() {
+  stopPadAuto();
+  const bpm = Math.max(40, Math.min(220, effectiveBpm() || 100));
+  const ms = (60 / bpm) * padBeats * 1000;
+  padAutoTimer = setInterval(padAdvance, ms);
+}
+function stopPadAuto() { if (padAutoTimer) clearInterval(padAutoTimer); padAutoTimer = null; }
+function padAdvance() {
+  if (!padNodes || !padSeq.length) return;
+  padIdx = (padIdx + 1) % padSeq.length;
+  applyChordToPad(chordToTones(padSeq[padIdx]), false);
+  updatePadBtn();
+}
+// "▶ Akor" düğmesi: elle sonraki akora geç; oto modda ayrıca zamanlamayı hizala
+function padNextTap() {
+  if (!isPadOn() || padMode === 'drone') return;
+  padAdvance();
+  if (padMode === 'follow-auto') startPadAuto();
 }
 function stopPad(immediate) {
+  stopPadAuto();
   if (!padNodes || !audioCtx) { padNodes = null; return; }
   const ctx = audioCtx, now = ctx.currentTime;
-  const { master, oscs, lfo } = padNodes;
+  const { master, oscs } = padNodes;
   try {
     const t = immediate ? 0.05 : 0.6;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
-    master.gain.linearRampToValueAtTime(0.0001, now + t);   // yumuşak çıkış
+    master.gain.linearRampToValueAtTime(0.0001, now + t);
     oscs.forEach((o) => { try { o.stop(now + t + 0.05); } catch (_) {} });
-    if (lfo) { try { lfo.stop(now + t + 0.05); } catch (_) {} }
   } catch (_) {}
   padNodes = null;
 }
@@ -2745,38 +2801,46 @@ function updatePadBtn() {
   const vl = $('pad-vol-label'); if (vl) vl.textContent = '%' + Math.round(padVol / 0.2 * 100);
   const ol = $('pad-oct-label'); if (ol) ol.textContent = (padOct > 0 ? '+' : '') + padOct;
   const md = $('pad-mode'); if (md) md.textContent = PAD_MODE_LABEL[padMode];
+  const follow = padMode !== 'drone';
+  const ch = $('pad-chord');
+  if (ch) {
+    ch.classList.toggle('hidden', !follow);
+    ch.textContent = follow ? (padSeq.length ? (padSeq[padIdx % padSeq.length] + ' ' + (padIdx % padSeq.length + 1) + '/' + padSeq.length) : '—') : '';
+  }
+  const nx = $('pad-next'); if (nx) nx.classList.toggle('hidden', !follow);
+  const bt = $('pad-beats'); if (bt) { bt.classList.toggle('hidden', padMode !== 'follow-auto'); bt.textContent = padBeats + ' vuruş'; }
 }
 function togglePad() {
   if (isPadOn()) { stopPad(); updatePadBtn(); return; }
   if (!currentSong) return;
-  const info = songKeyInfo(currentSong);
-  if (info.pc < 0) { toast('Şarkının tonu belli değil — ⋯ → Düzenle’den ton gir.'); return; }
-  startPad(info.pc, info.minor);
+  padIdx = 0;
+  startPad();
   updatePadBtn();
-  toast('🌊 Pad: ' + (info.label || '') + ' — mod/oktav/ses düğmelerle ayarlanır');
+  if (isPadOn()) toast('🌊 Pad — ' + PAD_MODE_LABEL[padMode] + (padMode === 'follow-manual' ? ': “▶ Akor” ile ilerlet' : ''));
 }
-// Modu değiştir (Akor → Nabız → Kök). Açıksa yeni modda yeniden başlat.
+// Modu değiştir (Elle → Oto → Sabit). Açıksa yeni modda yeniden başlat.
 function padCycleMode() {
-  const seq = ['chord', 'pulse', 'root'];
+  const seq = ['follow-manual', 'follow-auto', 'drone'];
   padMode = seq[(seq.indexOf(padMode) + 1) % seq.length];
   localStorage.setItem('padMode', padMode);
-  if (isPadOn()) repadForCurrent();
+  if (isPadOn()) { padIdx = 0; startPad(); }
   updatePadBtn();
-  if (padMode === 'pulse') toast('💓 Nabız: şarkının BPM’ine göre atar' + (currentSong && currentSong.bpm ? ' (' + Math.round(effectiveBpm()) + ' BPM)' : ' — BPM girilmemiş, 100 varsayıldı'));
-  else if (padMode === 'root') toast('• Kök: sade, sadece kök + beşli');
-  else toast('🎵 Akor: sürekli tam akor');
+  if (padMode === 'follow-manual') toast('🎸 Elle: “▶ Akor” ile akor akor ilerlet');
+  else if (padMode === 'follow-auto') toast('⏱ Oto: tempoya göre otomatik (' + Math.round(effectiveBpm() || 100) + ' BPM, her akor ' + padBeats + ' vuruş) — “▶ Akor” ile hizala');
+  else toast('🌊 Sabit: şarkının tonunda sürekli ses (şarkı arası için)');
+}
+function padCycleBeats() {
+  const opts = [2, 4, 8];
+  padBeats = opts[(opts.indexOf(padBeats) + 1) % opts.length];
+  localStorage.setItem('padBeats', String(padBeats));
+  if (isPadOn() && padMode === 'follow-auto') startPadAuto();
+  updatePadBtn();
 }
 // Pad açıkken oktavı/sesi canlı değiştir
 function padOctDelta(d) {
   padOct = Math.max(-2, Math.min(2, padOct + d));
   localStorage.setItem('padOct', String(padOct));
-  if (padNodes && audioCtx) {
-    const now = audioCtx.currentTime;
-    padNodes.oscs.forEach((o, i) => {
-      const v = padNodes.voices[i];
-      o.frequency.setTargetAtTime(padFreq(v.pc, v.oct + padOct), now, 0.06);
-    });
-  }
+  if (isPadOn()) applyChordToPad(currentPadTones(), false);
   updatePadBtn();
 }
 function padVolDelta(d) {
@@ -2790,12 +2854,11 @@ function padVolDelta(d) {
   }
   updatePadBtn();
 }
-// Şarkı değişince pad açıksa yeni tonda devam etsin
+// Şarkı değişince pad açıksa yeni şarkının akorlarıyla baştan başla
 function repadForCurrent() {
-  if (!isPadOn() || !currentSong) return;
-  const info = songKeyInfo(currentSong);
-  if (info.pc >= 0) startPad(info.pc, info.minor);
-  else { stopPad(); }
+  if (!isPadOn()) return;
+  padIdx = 0;
+  startPad();
   updatePadBtn();
 }
 
@@ -3869,6 +3932,8 @@ updateFontAutoBtn();
 $('voice-btn').addEventListener('click', toggleVoice);
 $('pad-btn').addEventListener('click', togglePad);
 $('pad-mode').addEventListener('click', padCycleMode);
+$('pad-next').addEventListener('click', padNextTap);
+$('pad-beats').addEventListener('click', padCycleBeats);
 $('pad-oct-down').addEventListener('click', () => padOctDelta(-1));
 $('pad-oct-up').addEventListener('click', () => padOctDelta(1));
 $('pad-vol-down').addEventListener('click', () => padVolDelta(-0.02));
