@@ -737,6 +737,16 @@ body.stage .stage-nav {
   color: #ff9f43;
   font-weight: 700;
 }
+.badge.hidden-badge {
+  background: rgba(138, 148, 166, 0.18);
+  border: 1px solid #8a94a6;
+  color: #8a94a6;
+  font-weight: 700;
+}
+/* Etiket menüsünde açık/kapalı düğme (segue, gizle) */
+.sheet-btn.on { background: rgba(46, 204, 113, 0.16); color: var(--ok); font-weight: 700; }
+/* Otomatik kaydırma düğmesi aktif */
+#crawl-toggle.active, #potpuri-crawl.active { background: var(--ok); color: #04240f; border-color: var(--ok); font-weight: 700; }
 
 /* ---------- Sözde ara ---------- */
 .list-filter { display: flex; gap: 8px; align-items: center; }

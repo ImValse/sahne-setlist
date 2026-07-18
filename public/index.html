@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=43" />
-  <link rel="stylesheet" href="/style.css?v=43" />
+  <link rel="stylesheet" href="/fonts.css?v=44" />
+  <link rel="stylesheet" href="/style.css?v=44" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -86,6 +86,11 @@
         <button class="viewchip active" data-view="both">İkisi</button>
         <button class="viewchip" data-view="lyrics">Söz</button>
         <button id="chorus-chip" class="viewchip" title="Sadece nakaratı göster (oyun havaları için)">🎉 Nakarat</button>
+      </div>
+      <div id="crawl-group" class="ctrl-group hidden">
+        <span class="ctrl-label">Kaydır</span>
+        <button id="crawl-toggle" class="chip" title="Nakaratı otomatik kaydır">▶ Kaydır</button>
+        <button id="crawl-speed" class="chip" title="Kaydırma hızı">1×</button>
       </div>
       <div class="ctrl-group">
         <button id="timer-pill" class="chip timer-pill" title="Çalma süresi — dokun: sıfırla">⏱ 0:00</button>
@@ -284,7 +289,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v43</b></span>
+        <span class="muted">Sürüm <b id="app-version">v44</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -378,6 +383,8 @@
       <span class="ss-badge">🎉 POTPURİ</span>
       <div class="potpuri-tools">
         <button id="potpuri-pick-btn" class="chip">🎵 Şarkı seç</button>
+        <button id="potpuri-crawl" class="icon-btn" title="Otomatik kaydır">▶</button>
+        <button id="potpuri-speed" class="icon-btn" title="Kaydırma hızı">1×</button>
         <button id="potpuri-font-down" class="icon-btn" title="Yazıyı küçült">A−</button>
         <button id="potpuri-font-up" class="icon-btn" title="Yazıyı büyüt">A+</button>
       </div>
@@ -493,12 +500,13 @@
       <div id="label-song-name" class="sheet-title">Etiket & renk</div>
       <div id="color-swatches" class="swatches"></div>
       <button id="label-segue" class="sheet-btn">🔗 Sonraki şarkıya bağla (segue/medley)</button>
+      <button id="label-hide" class="sheet-btn">🙈 Şarkıyı gizle (listeden/akor sırasından çıkar)</button>
       <button id="label-cancel" class="sheet-btn cancel">Kapat</button>
     </div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=43"></script>
+  <script src="/app.js?v=44"></script>
 </body>
 </html>

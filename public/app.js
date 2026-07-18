@@ -423,10 +423,12 @@ let filterText = '';
 let filterGenre = localStorage.getItem('filterGenre') || '';   // '' = tümü, ya da renk anahtarı
 let filterPlayed = localStorage.getItem('filterPlayed') || ''; // '' | 'played' | 'unplayed'
 let filterPractice = localStorage.getItem('filterPractice') === '1'; // sadece prova listesi
+let filterHidden = localStorage.getItem('filterHidden') === '1'; // sadece gizlenenler
 function saveFilters() {
   localStorage.setItem('filterGenre', filterGenre);
   localStorage.setItem('filterPlayed', filterPlayed);
   localStorage.setItem('filterPractice', filterPractice ? '1' : '0');
+  localStorage.setItem('filterHidden', filterHidden ? '1' : '0');
 }
 
 // Filtre çubuğunu (tür + çalınan/çalınmayan) çizer
@@ -437,10 +439,11 @@ function renderFilters() {
   bar.innerHTML = '';
   const anyPlayed = sl.songs.some((s) => s.played);
   const anyPractice = sl.songs.some((s) => s.practice);
+  const hiddenCount = sl.songs.filter((s) => s.hidden).length;
   // sette bulunan türler
   const genres = [...new Set(sl.songs.map((s) => s.color).filter(Boolean))];
   const modeBar = (mode === 'stage' || mode === 'chord' || mode === 'chorus');
-  if (genres.length === 0 && !anyPlayed && !anyPractice && !modeBar) { bar.classList.add('hidden'); return; }
+  if (genres.length === 0 && !anyPlayed && !anyPractice && !hiddenCount && !modeBar) { bar.classList.add('hidden'); return; }
   bar.classList.remove('hidden');
 
   const chip = (label, active, onClick, css) => {
@@ -470,13 +473,16 @@ function renderFilters() {
     bar.appendChild(pp);
   }
 
-  chip('Tümü', !filterGenre && !filterPlayed && !filterPractice, () => { filterGenre = ''; filterPlayed = ''; filterPractice = false; saveFilters(); renderList(); });
+  chip('Tümü', !filterGenre && !filterPlayed && !filterPractice && !filterHidden, () => { filterGenre = ''; filterPlayed = ''; filterPractice = false; filterHidden = false; saveFilters(); renderList(); });
   if (anyPractice) {
-    chip('🎯 Prova', filterPractice, () => { filterPractice = !filterPractice; saveFilters(); renderList(); });
+    chip('🎯 Prova', filterPractice, () => { filterPractice = !filterPractice; if (filterPractice) filterHidden = false; saveFilters(); renderList(); });
   }
   if (anyPlayed) {
-    chip('✓ Çalınan', filterPlayed === 'played', () => { filterPlayed = filterPlayed === 'played' ? '' : 'played'; saveFilters(); renderList(); });
-    chip('○ Çalınmayan', filterPlayed === 'unplayed', () => { filterPlayed = filterPlayed === 'unplayed' ? '' : 'unplayed'; saveFilters(); renderList(); });
+    chip('✓ Çalınan', filterPlayed === 'played', () => { filterPlayed = filterPlayed === 'played' ? '' : 'played'; if (filterPlayed) filterHidden = false; saveFilters(); renderList(); });
+    chip('○ Çalınmayan', filterPlayed === 'unplayed', () => { filterPlayed = filterPlayed === 'unplayed' ? '' : 'unplayed'; if (filterPlayed) filterHidden = false; saveFilters(); renderList(); });
+  }
+  if (hiddenCount) {
+    chip('🙈 Gizlenen (' + hiddenCount + ')', filterHidden, () => { filterHidden = !filterHidden; if (filterHidden) { filterPlayed = ''; filterPractice = false; } saveFilters(); renderList(); });
   }
   genres.forEach((g) => {
     chip(colorName(g), filterGenre === g, () => { filterGenre = filterGenre === g ? '' : g; saveFilters(); renderList(); }, colorCss(g));
@@ -525,6 +531,9 @@ function renderList() {
       const hay = trSimplify((song.artist || '') + ' ' + (song.song || song.title || '')).toLowerCase();
       if (!hay.includes(q)) return;
     }
+    // Gizlenenler: normalde listede yok; yalnız "🙈 Gizlenen" filtresinde görünür
+    if (filterHidden) { if (!song.hidden) return; }
+    else if (song.hidden) return;
     if (filterGenre && song.color !== filterGenre) return;
     if (filterPlayed === 'played' && !song.played) return;
     if (filterPlayed === 'unplayed' && song.played) return;
@@ -542,6 +551,7 @@ function renderList() {
     const tag = song.color ? `<span class="badge tag-chip" style="background:${colorCss(song.color)}">${escapeHtml(colorName(song.color))}</span>` : '';
     const segue = song.segue ? '<span class="segue-mark" title="Sonrakine bağlı">🔗</span>' : '';
     const practiceBadge = song.practice ? '<span class="badge practice" title="Prova listesinde">🎯</span>' : '';
+    const hiddenBadge = song.hidden ? '<span class="badge hidden-badge" title="Gizli — akor sıralamasına girmez">🙈</span>' : '';
     const vocalBadge = (song.vocalOk && songKeyStr(song))
       ? `<span class="badge vocal" title="Rahat söylenen ton (kilitli)">🎤 ${escapeHtml(songKeyStr(song))}</span>` : '';
     let chorusBadge = '';
@@ -574,6 +584,7 @@ function renderList() {
        ${chorusBadge}
        ${vocalBadge}
        ${practiceBadge}
+       ${hiddenBadge}
        ${tag}
        ${dur}
        ${song.transpose ? `<div class="badge">${song.transpose > 0 ? '+' : ''}${song.transpose}</div>` : ''}
@@ -676,6 +687,11 @@ function openLabel(songId) {
   });
   $('label-segue').classList.toggle('on', !!song.segue);
   $('label-segue').textContent = (song.segue ? '🔗 Bağlı ✓ — kaldırmak için dokun' : '🔗 Sonraki şarkıya bağla (segue/medley)');
+  const hb = $('label-hide');
+  if (hb) {
+    hb.classList.toggle('on', !!song.hidden);
+    hb.textContent = (song.hidden ? '🙈 Gizli ✓ — göstermek için dokun' : '🙈 Şarkıyı gizle (listeden/akor sırasından çıkar)');
+  }
   $('sheet-label').classList.remove('hidden');
 }
 function closeLabel() { $('sheet-label').classList.add('hidden'); }
@@ -691,6 +707,14 @@ function toggleSegue() {
   const song = currentSetlist().songs.find((s) => s.id === labelSongId);
   if (!song) return;
   song.segue = !song.segue;
+  saveState();
+  renderList();
+  openLabel(labelSongId);
+}
+function toggleHide() {
+  const song = currentSetlist().songs.find((s) => s.id === labelSongId);
+  if (!song) return;
+  song.hidden = !song.hidden;
   saveState();
   renderList();
   openLabel(labelSongId);
@@ -825,6 +849,7 @@ async function openSong(songId) {
   $('view-song').classList.remove('hidden');
   $('view-song').scrollTop = 0;
   stopScroll();
+  stopCrawl();
   document.querySelectorAll('.viewchip').forEach((c) =>
     c.classList.toggle('active', c.dataset.view === viewMode));
   startSongTimer();
@@ -856,6 +881,8 @@ async function openSong(songId) {
   }
   paintSong();
   fitToWidth();   // akorlar/sözler ekrana sığsın
+  updateCrawlChip();
+  updateCrawlLabels();
 }
 
 // Setlist icinde (gosterim sirasina gore) onceki/sonraki sarkiya gec
@@ -1018,6 +1045,67 @@ function toggleChorus() {
   }
   paintSong();
   fitToWidth();
+  updateCrawlChip();
+}
+
+/* ---------- Otomatik yavaş kaydırma (nakarat modu + potpuri) ----------
+ * Sabit hızlı, elleri boşta okuma için. Altyapıya bağlı DEĞİL. */
+const CRAWL_SPEEDS = [0.6, 1, 1.5, 2.3];      // px / ~33ms
+const CRAWL_LABELS = ['½×', '1×', '1½×', '2×'];
+let crawlSpeedIdx = parseInt(localStorage.getItem('crawlSpeedIdx') || '1', 10);
+if (!(crawlSpeedIdx >= 0 && crawlSpeedIdx < CRAWL_SPEEDS.length)) crawlSpeedIdx = 1;
+let crawlTimer = null;
+let crawlEl = null;
+let crawlAcc = 0;
+function isCrawling() { return !!crawlTimer; }
+function startCrawl(el) {
+  stopCrawl();
+  if (!el) return;
+  crawlEl = el;
+  crawlAcc = 0;
+  crawlTimer = setInterval(() => {
+    if (!crawlEl) { stopCrawl(); return; }
+    const max = crawlEl.scrollHeight - crawlEl.clientHeight;
+    if (max <= 0) return;
+    crawlAcc += CRAWL_SPEEDS[crawlSpeedIdx];
+    if (crawlAcc >= 1) {
+      const step = Math.floor(crawlAcc);
+      crawlAcc -= step;
+      crawlEl.scrollTop = Math.min(max, crawlEl.scrollTop + step);
+      if (crawlEl.scrollTop >= max) { stopCrawl(); updateCrawlBtns(); }
+    }
+  }, 33);
+  updateCrawlBtns();
+}
+function stopCrawl() { if (crawlTimer) clearInterval(crawlTimer); crawlTimer = null; crawlEl = null; }
+function updateCrawlBtns() {
+  const on = isCrawling();
+  const a = $('crawl-toggle'); if (a) { a.textContent = on ? '⏸ Dur' : '▶ Kaydır'; a.classList.toggle('active', on); }
+  const b = $('potpuri-crawl'); if (b) { b.textContent = on ? '⏸' : '▶'; b.classList.toggle('active', on); }
+}
+function updateCrawlLabels() {
+  const l = CRAWL_LABELS[crawlSpeedIdx];
+  const a = $('crawl-speed'); if (a) a.textContent = l;
+  const b = $('potpuri-speed'); if (b) b.textContent = l;
+}
+function cycleCrawlSpeed() {
+  crawlSpeedIdx = (crawlSpeedIdx + 1) % CRAWL_SPEEDS.length;
+  localStorage.setItem('crawlSpeedIdx', String(crawlSpeedIdx));
+  updateCrawlLabels();
+}
+// Nakarat modunda kaydırma grubunu göster/gizle
+function updateCrawlChip() {
+  const g = $('crawl-group');
+  if (g) g.classList.toggle('hidden', !chorusOnly);
+  if (!chorusOnly) { stopCrawl(); updateCrawlBtns(); }
+}
+function toggleSongCrawl() {
+  if (isCrawling()) { stopCrawl(); updateCrawlBtns(); }
+  else startCrawl($('view-song'));
+}
+function togglePotpuriCrawl() {
+  if (isCrawling()) { stopCrawl(); updateCrawlBtns(); }
+  else startCrawl($('potpuri-body'));
 }
 function setViewMode(mode) {
   viewMode = mode;
@@ -1933,16 +2021,19 @@ function openPotpuri() {
   if (!Array.isArray(sl.potpuriIds)) sl.potpuriIds = [];
   potpuriPicking = false;
   applyPotpuriFont();
+  updateCrawlLabels();
+  updateCrawlBtns();
   $('modal-potpuri').classList.remove('hidden');
   // Hiç seçili şarkı yoksa doğrudan seçim ekranını aç
   if (!sl.potpuriIds.length) togglePotpuriPick(true);
   else togglePotpuriPick(false);
 }
-function closePotpuri() { $('modal-potpuri').classList.add('hidden'); }
+function closePotpuri() { stopCrawl(); updateCrawlBtns(); $('modal-potpuri').classList.add('hidden'); }
 
 // Oynat/Seç arası geçiş
 function togglePotpuriPick(force) {
   potpuriPicking = (typeof force === 'boolean') ? force : !potpuriPicking;
+  stopCrawl(); updateCrawlBtns();
   $('potpuri-body').classList.toggle('hidden', potpuriPicking);
   $('potpuri-pick').classList.toggle('hidden', !potpuriPicking);
   $('potpuri-pick-btn').textContent = potpuriPicking ? '▶ Oynat' : '🎵 Şarkı seç';
@@ -2189,6 +2280,7 @@ async function refreshCurrentSong() {
 function showList() {
   clearTimeout(autoPlayTimer);
   stopScroll();
+  stopCrawl();
   stopSongTimer();
   stopRhythm();
   stopBacking();
@@ -3334,6 +3426,12 @@ $('potpuri-exit').addEventListener('click', closePotpuri);
 $('potpuri-pick-btn').addEventListener('click', () => togglePotpuriPick());
 $('potpuri-font-down').addEventListener('click', () => potpuriFontDelta(-2));
 $('potpuri-font-up').addEventListener('click', () => potpuriFontDelta(2));
+$('potpuri-crawl').addEventListener('click', togglePotpuriCrawl);
+$('potpuri-speed').addEventListener('click', cycleCrawlSpeed);
+
+// Nakarat modu otomatik kaydırma
+$('crawl-toggle').addEventListener('click', toggleSongCrawl);
+$('crawl-speed').addEventListener('click', cycleCrawlSpeed);
 
 // Görünüm modu çipleri + süre sayacı
 document.querySelectorAll('.viewchip').forEach((chip) => {
@@ -3401,6 +3499,7 @@ $('backing-audio').addEventListener('ended', onBackingEnded);
 
 // Etiket menüsü
 $('label-segue').addEventListener('click', toggleSegue);
+$('label-hide').addEventListener('click', toggleHide);
 $('label-cancel').addEventListener('click', closeLabel);
 $('genre-order-close').addEventListener('click', closeGenreOrder);
 
