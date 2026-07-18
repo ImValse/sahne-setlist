@@ -198,21 +198,33 @@ function trSimplify(s) {
 }
 
 // Govdeyi transpoze edip renkli HTML uretir. mode: 'both'|'lyrics'|'chords'
-function renderBody(body, semi, preferFlat, mode) {
+function renderBody(body, semi, preferFlat, mode, struct) {
   mode = mode || 'both';
+  const st = struct ? analyzeStructure(body) : null;
   const out = [];
+  let idx = -1;
   body.split('\n').forEach((line) => {
+    idx++;
     const chord = isChordLine(line);
     const blank = line.trim() === '';
     const label = /:/.test(line); // Intro:, Nakarat: gibi etiketler
     if (mode === 'lyrics' && chord && !label) return;        // akor satırını gizle
     if (mode === 'chords' && !chord && !blank && !label) return; // söz satırını gizle
+    let html;
     if (chord) {
       const t = semi ? transposeChordLine(line, semi, preferFlat) : line;
-      out.push('<span class="chordline">' + escapeHtml(t) + '</span>');
+      html = '<span class="chordline">' + escapeHtml(t) + '</span>';
     } else {
-      out.push(escapeHtml(line));
+      html = escapeHtml(line);
     }
+    if (st && !blank) {
+      let cls = '';
+      if (st.label.has(idx)) cls = 'sec-label';
+      else if (st.chorus.has(idx)) cls = 'sec-chorus';
+      else if (st.bridge.has(idx)) cls = 'sec-bridge';
+      if (cls) html = '<span class="' + cls + '">' + html + '</span>';
+    }
+    out.push(html);
   });
   return out.join('\n')
 }
@@ -256,6 +268,48 @@ function extractChorus(body) {
     if (counts[s] >= 2 && s.length > best) { best = s.length; bestSig = s; }
   }
   return bestSig ? firstBlock[bestSig] : '';
+}
+
+/* ==========================================================================
+ * YAPI RENKLENDİRME — sözün nakarat/köprü/etiket satırlarını otomatik bulur.
+ *  Etiketten (Nakarat:, Köprü:) + en çok tekrar eden bloktan (=nakarat) tanır.
+ *  Dönen: { chorus:Set, bridge:Set, label:Set } (satır indeksleri).
+ * ========================================================================== */
+function analyzeStructure(body) {
+  const res = { chorus: new Set(), bridge: new Set(), label: new Set() };
+  if (!body) return res;
+  const lines = body.replace(/\r/g, '').split('\n');
+  const short = (l) => l.trim().length <= 30;
+  const isChorusLbl = (l) => short(l) && /(nakarat|nakart|chorus|refran|refr|koro|baglanti)/i.test(trSimplify(l));
+  const isBridgeLbl = (l) => short(l) && /(kopru|bridge)/i.test(trSimplify(l));
+  const isVerseLbl = (l) => short(l) && /(kita|verse|bolum|intro|giris|solo|aranagme|outro|final)/i.test(trSimplify(l));
+  const sigLine = (l) => trSimplify(l).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Blokları (boş satırla ayrılan paragraflar) çıkar
+  const blocks = []; let cur = null;
+  lines.forEach((l, i) => {
+    if (l.trim() === '') { if (cur) { blocks.push(cur); cur = null; } return; }
+    if (!cur) cur = { idxs: [], parts: [] };
+    cur.idxs.push(i);
+    if (!isChordLine(l)) { const s = sigLine(l); if (s) cur.parts.push(s); }
+  });
+  if (cur) blocks.push(cur);
+  blocks.forEach((b) => { b.sig = b.parts.join(' | '); });
+  // En çok (>=2) tekrar eden blok imzası = nakarat
+  const counts = {};
+  blocks.forEach((b) => { if (b.sig.length >= 8) counts[b.sig] = (counts[b.sig] || 0) + 1; });
+  let chorusSig = '', best = 0;
+  for (const s in counts) if (counts[s] >= 2 && s.length > best) { best = s.length; chorusSig = s; }
+  blocks.forEach((b) => { if (chorusSig && b.sig === chorusSig) b.idxs.forEach((i) => res.chorus.add(i)); });
+  // Etiket satırları + etiketi izleyen bloklar
+  for (let i = 0; i < lines.length; i++) {
+    const ch = isChorusLbl(lines[i]), br = isBridgeLbl(lines[i]), ve = isVerseLbl(lines[i]);
+    if (!ch && !br && !ve) continue;
+    res.label.add(i);
+    if (!ch && !br) continue;              // kıta/intro etiketi: bloğu boyama
+    let j = i + 1; while (j < lines.length && lines[j].trim() === '') j++;
+    while (j < lines.length && lines[j].trim() !== '') { (br ? res.bridge : res.chorus).add(j); j++; }
+  }
+  return res;
 }
 
 /* ==========================================================================
@@ -1037,6 +1091,7 @@ async function renderStageShare(song, sl) {
 let viewMode = localStorage.getItem('sahne_viewmode') || 'both';
 if (viewMode === 'chords') viewMode = 'both';   // Akor modu üst çubuktan kaldırıldı
 let chorusOnly = false;   // "Sadece nakaratlar": şarkı ekranında yalnız koro
+let structColor = localStorage.getItem('structColor') !== '0'; // yapı renklendirme (nakarat/köprü)
 // Şarkının nakaratı: önce ELLE seçilen (song.chorusText), yoksa otomatik tahmin
 function chorusOf(song) {
   if (song && song.chorusText && song.chorusText.trim()) return song.chorusText;
@@ -1051,9 +1106,17 @@ function paintSong() {
     const ch = chorusOf(currentSong);
     if (ch) body = ch;   // bulunamazsa tüm gövde gösterilir
   }
-  $('song-body').innerHTML = renderBody(body, semi, preferFlat, viewMode);
+  const struct = structColor && !chorusOnly;   // nakarat modunda zaten sadece koro
+  $('song-body').innerHTML = renderBody(body, semi, preferFlat, viewMode, struct);
   $('tr-value').textContent = semi;
   const cc = $('chorus-chip'); if (cc) cc.classList.toggle('active', chorusOnly);
+  const sc = $('struct-chip'); if (sc) sc.classList.toggle('active', structColor);
+}
+function toggleStruct() {
+  structColor = !structColor;
+  localStorage.setItem('structColor', structColor ? '1' : '0');
+  paintSong();
+  toast(structColor ? '🎨 Nakarat/köprü renklendirme açık' : 'Renklendirme kapalı');
 }
 function toggleChorus() {
   chorusOnly = !chorusOnly;
@@ -3822,6 +3885,7 @@ document.querySelectorAll('.viewchip').forEach((chip) => {
   chip.addEventListener('click', () => { if (chip.dataset.view) setViewMode(chip.dataset.view); });
 });
 $('chorus-chip').addEventListener('click', toggleChorus);
+$('struct-chip').addEventListener('click', toggleStruct);
 $('timer-pill').addEventListener('click', startSongTimer); // dokun -> sıfırdan başlat
 
 // Sahne modu / metronom / kulaklık / tap tempo

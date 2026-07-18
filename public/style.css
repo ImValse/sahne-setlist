@@ -451,6 +451,10 @@ body.stage .stage-nav {
 /* Akor satırı: yalnızca renkle ayrılır — kalın YAPMA (kalın harfler proportional
    fontta daha geniş olup hizayı bozar). */
 .song-body .chordline { color: var(--chord); font-weight: 400; }
+/* Otomatik yapı renklendirme: nakarat / köprü / bölüm etiketi */
+.song-body .sec-chorus { background: rgba(46, 204, 113, 0.16); border-radius: 2px; }
+.song-body .sec-bridge { background: rgba(155, 89, 182, 0.18); border-radius: 2px; }
+.song-body .sec-label  { color: var(--accent); font-weight: 700; }
 
 /* ---------- Modal ---------- */
 .modal {
