@@ -11,8 +11,8 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/fonts.css?v=53" />
-  <link rel="stylesheet" href="/style.css?v=53" />
+  <link rel="stylesheet" href="/fonts.css?v=54" />
+  <link rel="stylesheet" href="/style.css?v=54" />
 </head>
 <body>
   <!-- ================= LISTE GORUNUMU ================= -->
@@ -104,16 +104,16 @@
         <button id="bpm-slow" class="chip" title="Dokun: kademeli yavaşlat · tekrar: durdur">🐢 Yavaşlat</button>
         <button id="rhythm-final" class="chip" title="Bitiş: ba-dum-tsss">🎬 Final</button>
         <button id="stage-mode" class="chip">🎬 Sahne</button>
-        <button id="pad-btn" class="chip" title="Boşluk doldurucu pad: şarkının tonunda yumuşak ses — şarkı arası sessizlik olmasın">🌊 Pad</button>
+        <button id="pad-btn" class="chip" title="Pad menüsünü aç/kapat (gitarın altında akor eşliği). Sesi menüdeki ▶ Çal açar.">🌊 Pad</button>
         <button id="follow-btn" class="chip" title="Oto-geçiş: arkadaşının açtığı şarkıya otomatik geç">🔗 Takip</button>
       </div>
       <div id="pad-group" class="ctrl-group hidden">
         <span class="ctrl-label">Pad</span>
+        <button id="pad-play" class="chip" title="Pad sesini çal / durdur">▶ Çal</button>
         <button id="pad-mode" class="chip" title="Mod: Elle (akor akor ilerlet) · Oto (tempoya göre) · Sabit (ton drone)">🎸 Elle</button>
         <button id="pad-chord" class="tr-value pad-chord">—</button>
-        <button id="pad-next" class="chip" title="Sonraki akora geç (oto modda ayrıca hizalar)">▶ Akor</button>
-        <button id="pad-rec" class="chip" title="Akor sürelerini dokunarak kaydet — sonra Oto mod kendi ritminle çalar">⏺ Kaydet</button>
-        <button id="pad-beats" class="chip hidden" title="Her akor kaç vuruş sürsün">4 vuruş</button>
+        <button id="pad-next" class="chip" title="Sonraki akora geç">▶ Akor</button>
+        <button id="pad-beats" class="chip" title="Bu akor kaç vuruş sürsün (2/4/8/16) — sırayla her akora ayarla">4 vuruş</button>
         <button id="pad-oct-down" class="chip" title="Bir oktav pes (kalın)">Oktav −</button>
         <span id="pad-oct-label" class="tr-value">0</span>
         <button id="pad-oct-up" class="chip" title="Bir oktav tiz (ince)">＋</button>
@@ -311,7 +311,7 @@
       </div>
 
       <div class="app-foot">
-        <span class="muted">Sürüm <b id="app-version">v53</b></span>
+        <span class="muted">Sürüm <b id="app-version">v54</b></span>
         <button id="btn-force-update" class="chip">↻ Güncelle</button>
       </div>
     </div>
@@ -531,6 +531,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js?v=53"></script>
+  <script src="/app.js?v=54"></script>
 </body>
 </html>
